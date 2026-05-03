@@ -16,8 +16,8 @@ async function main() {
 
     // Initialize Firebase Admin SDK
     initializeFirebase(config);
-    // await connectMongoDB();
-    // startFirestoreListeners();
+    await connectMongoDB();
+    startFirestoreListeners();
 
     // Create and start Express app
     const app = createApp(config);

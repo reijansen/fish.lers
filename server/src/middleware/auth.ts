@@ -34,6 +34,7 @@ export function errorHandler(
  * Usage: app.use(requireAuth) or router.use(requireAuth)
  */
 import { getAuth } from "../config/firebase.js";
+import { getUserFromMongo } from "../services/authFallback.js";
 
 declare global {
   namespace Express {
@@ -64,10 +65,47 @@ export async function requireAuth(
       admin: !!decodedToken.admin || !!decodedToken.superAdmin,
       superAdmin: !!decodedToken.superAdmin,
     };
-    next();
-  } catch (error: any) {
-    console.error("Auth error:", error.message);
+    return next();
+  } catch (firebaseError: any) {
+    console.warn("⚠️ Firebase auth failed, trying MongoDB fallback...");
+    console.error("Auth error:", firebaseError.message);
     res.status(401).json({ error: "Invalid or expired token" });
+  }
+  
+  // Fallback: decode JWT manually and look up user in MongoDB
+  try {
+    const payload = JSON.parse(
+      Buffer.from(token.split('.')[1], 'base64').toString('utf-8')
+    );
+
+    const uid = payload.uid || payload.user_id || payload.sub;
+    if (!uid) {
+      return res.status(401).json({ error: "Invalid token payload" });
+    }
+
+    // Check token expiry manually
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) {
+      return res.status(401).json({ error: "Token has expired" });
+    }
+
+    // Look up user in MongoDB backup
+    const user = await getUserFromMongo(uid);
+    if (!user) {
+      return res.status(401).json({ error: "User not found in backup" });
+    }
+
+    req.user = {
+      uid: user.uid,
+      email: user.email,
+      admin: user.role === "admin" || user.isSuperAdmin,
+      superAdmin: user.isSuperAdmin,
+    };
+
+    return next();
+  } catch (mongoError: any) {
+    console.error("MongoDB auth error:", mongoError.message);
+    return res.status(401).json({ error: "Authentication failed" });
   }
 }
 
