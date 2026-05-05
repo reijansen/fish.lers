@@ -15,6 +15,7 @@ import {
   CreateMessageInput,
   PaginatedResponse,
   PaginationCursor,
+  ConversationReadState,
 } from "../models/chat.js";
 
 type FirestoreQuery = FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
@@ -352,28 +353,54 @@ export class ChatRepository {
   }
 
   /**
+   * Get a specific message by ID.
+   * Used for Phase 5 read receipts (to map messageID -> createdAt timestamp).
+   */
+  static async getMessageById(
+    conversationID: string,
+    messageID: string
+  ): Promise<ChatMessage | null> {
+    const db = getFirestore();
+    const docSnap = await db
+      .collection(CONVERSATIONS_COLLECTION)
+      .doc(conversationID)
+      .collection(MESSAGES_SUBCOLLECTION)
+      .doc(messageID)
+      .get();
+
+    if (!docSnap.exists) return null;
+
+    return {
+      messageID: docSnap.id,
+      conversationID,
+      ...(docSnap.data() || {}),
+    } as ChatMessage;
+  }
+
+  /**
    * Get read state for a user in a conversation.
    * Returns null if not found.
    */
   static async getReadState(
     conversationID: string,
     userUID: string
-  ): Promise<any | null> {
+  ): Promise<ConversationReadState | null> {
     const db = getFirestore();
     const readStateID = `${conversationID}:${userUID}`;
     const docSnap = await db.collection(READ_STATE_COLLECTION).doc(readStateID).get();
 
-    return docSnap.exists ? docSnap.data() : null;
+    return docSnap.exists ? (docSnap.data() as ConversationReadState) : null;
   }
 
   /**
    * Update read state for a user in a conversation.
-   * Placeholder for Phase 5 unread tracking.
+   * Phase 5: persistent read receipts backing server-side unread counts.
    */
   static async updateReadState(
     conversationID: string,
     userUID: string,
-    readUpToMessageID: string
+    readUpToMessageID: string,
+    readUpToTimestamp: string
   ): Promise<void> {
     const db = getFirestore();
     const readStateID = `${conversationID}:${userUID}`;
@@ -383,9 +410,36 @@ export class ChatRepository {
         conversationID,
         userUID,
         readUpToMessageID,
+        readUpToTimestamp,
+        unreadCount: 0,
         lastUpdatedAt: new Date().toISOString(),
       },
       { merge: true }
     );
+  }
+
+  /**
+   * Count unread messages after a given timestamp.
+   * Used to compute server-backed unreadCount for inbox lists.
+   */
+  static async countUnreadMessagesAfter(
+    conversationID: string,
+    afterTimestamp: string,
+    maxCount = 999
+  ): Promise<number> {
+    const db = getFirestore();
+    const messagesRef = db
+      .collection(CONVERSATIONS_COLLECTION)
+      .doc(conversationID)
+      .collection(MESSAGES_SUBCOLLECTION);
+
+    const query = messagesRef
+      .where("deletedAt", "==", null)
+      .where("createdAt", ">", afterTimestamp)
+      .orderBy("createdAt", "asc")
+      .limit(maxCount + 1);
+
+    const snap = await query.get();
+    return Math.min(snap.size, maxCount);
   }
 }

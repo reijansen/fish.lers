@@ -162,12 +162,46 @@ export async function getUserConversations(
     // Limit results
     const items = conversations.slice(0, parsedLimit);
 
+    // ====================================================================
+    // Phase 5: server-backed unread counts
+    // ====================================================================
+
+    const unreadCounts: Record<string, number> = {};
+
+    await Promise.all(
+      items.map(async (conv) => {
+        try {
+          const readState = await ChatRepository.getReadState(conv.conversationID, userId);
+
+          // No messages => no unread
+          if (!conv.lastMessageAt) {
+            unreadCounts[conv.conversationID] = 0;
+            return;
+          }
+
+          const readUpTo = readState?.readUpToTimestamp;
+          if (readUpTo && new Date(conv.lastMessageAt).getTime() <= new Date(readUpTo).getTime()) {
+            unreadCounts[conv.conversationID] = 0;
+            return;
+          }
+
+          const afterTimestamp = readUpTo || "1970-01-01T00:00:00.000Z";
+          // Cap unread count to avoid heavy reads for large threads
+          const unread = await ChatRepository.countUnreadMessagesAfter(conv.conversationID, afterTimestamp, 999);
+          unreadCounts[conv.conversationID] = unread;
+        } catch {
+          unreadCounts[conv.conversationID] = 0;
+        }
+      })
+    );
+
     console.log(
       `[API] Retrieved ${items.length} conversations for ${userId}`
     );
 
     res.status(200).json({
       conversations: items,
+      unreadCounts,
     });
   } catch (error: any) {
     console.error(`[API] Error in getUserConversations:`, error.message);

@@ -407,6 +407,22 @@ export class ChatDataService {
     userUID: string,
     readUpToMessageID: string
   ): Promise<void> {
-    await ChatRepository.updateReadState(conversationID, userUID, readUpToMessageID);
+    const message = await ChatRepository.getMessageById(conversationID, readUpToMessageID);
+    if (!message) {
+      throw new Error("Invalid readUpToMessageID");
+    }
+
+    const existing = await ChatRepository.getReadState(conversationID, userUID);
+    if (existing?.readUpToTimestamp) {
+      // Enforce monotonic reads by timestamp
+      const prev = new Date(existing.readUpToTimestamp).getTime();
+      const next = new Date(message.createdAt).getTime();
+      if (Number.isFinite(prev) && Number.isFinite(next) && next < prev) {
+        // Ignore older read cursor
+        return;
+      }
+    }
+
+    await ChatRepository.updateReadState(conversationID, userUID, readUpToMessageID, message.createdAt);
   }
 }

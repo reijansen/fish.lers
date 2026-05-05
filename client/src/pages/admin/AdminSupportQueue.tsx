@@ -32,10 +32,7 @@ export default function AdminSupportQueue() {
 
   useEffect(() => {
     if (isConnected && (userRole === 'admin' || userRole === 'superAdmin')) {
-      loadConversations({
-        type: 'student_support',
-        status: filterStatus === 'all' ? undefined : filterStatus,
-      });
+      loadConversations();
     }
   }, [isConnected, userRole, filterStatus]);
 
@@ -51,7 +48,7 @@ export default function AdminSupportQueue() {
     if (
       searchTerm &&
       !conv.studentUID?.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      !conv.lastMessageText?.toLowerCase().includes(searchTerm.toLowerCase())
+      !conv.lastMessagePreview?.toLowerCase().includes(searchTerm.toLowerCase())
     ) {
       return false;
     }
@@ -195,7 +192,7 @@ export default function AdminSupportQueue() {
                         </div>
 
                         <p className="text-sm text-base-content/70 line-clamp-2 mt-1">
-                          {conv.lastMessageText || 'No messages yet'}
+                          {conv.lastMessagePreview || 'No messages yet'}
                         </p>
 
                         <div className="flex items-center justify-between mt-2">

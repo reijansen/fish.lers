@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../hooks/useAuth";
-import { Home, FilePlus, ClipboardList, MapPin, LogOut, PanelLeftClose, PanelLeftOpen, Fish } from "lucide-react";
+import { Home, FilePlus, ClipboardList, MapPin, LogOut, PanelLeftClose, PanelLeftOpen, Fish, MessageCircle } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 interface DrawerLayoutProps {
@@ -49,6 +49,7 @@ const DrawerLayout: React.FC<DrawerLayoutProps> = ({ children }) => {
 
   const menuItems = [
     { icon: <Home size={20} />, text: "Dashboard", path: "/student", active: location.pathname === "/" || location.pathname.startsWith("/student") },
+    { icon: <MessageCircle size={20} />, text: "Chat", path: "/chat", active: location.pathname.startsWith("/chat") },
     { icon: <FilePlus size={20} />, text: "Request Form", path: "/requestpage", active: location.pathname.startsWith("/request") || location.pathname.startsWith("/requestpage") },
     { icon: <ClipboardList size={20} />, text: "Accountabilities", path: "/accountabilities", active: location.pathname.startsWith("/accountabilities") },
     { icon: <MapPin size={20} />, text: "Tracking", path: "/tracking", active: location.pathname.startsWith("/tracking") },

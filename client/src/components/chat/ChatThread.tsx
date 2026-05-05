@@ -15,6 +15,7 @@ interface ChatThreadProps {
   hasMoreMessages: boolean;
   userUID: string | null;
   userRole: 'student' | 'admin' | 'superAdmin' | null;
+  typingUsers?: Array<{ userUID: string; userRole: ChatMessage["senderRole"] }>;
   onLoadMore: () => Promise<void>;
 }
 
@@ -25,6 +26,7 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
   hasMoreMessages,
   userUID,
   userRole,
+  typingUsers,
   onLoadMore,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -75,6 +77,13 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
               <span className="ml-2 badge badge-warning">Closed</span>
             )}
           </p>
+          {typingUsers && typingUsers.length > 0 && (
+            <p className="text-sm text-base-content/70 mt-1">
+              {typingUsers.length === 1
+                ? `${typingUsers[0].userRole} is typing...`
+                : `Multiple people are typing...`}
+            </p>
+          )}
         </div>
       </div>
 

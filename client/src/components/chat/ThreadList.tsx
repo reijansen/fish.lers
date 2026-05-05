@@ -91,14 +91,12 @@ export const ThreadList: React.FC<ThreadListProps> = ({
             >
               Support
             </button>
-            {userRole !== 'student' && (
-              <button
-                className={`tab ${filterType === 'escalation' ? 'tab-active' : ''}`}
-                onClick={() => setFilterType('escalation')}
-              >
-                Escalations
-              </button>
-            )}
+            <button
+              className={`tab ${filterType === 'escalation' ? 'tab-active' : ''}`}
+              onClick={() => setFilterType('escalation')}
+            >
+              Escalations
+            </button>
           </div>
         )}
       </div>

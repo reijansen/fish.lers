@@ -24,7 +24,6 @@ export default function StudentSupportChat() {
     setMessageInput,
     isSendingMessage,
     loadConversation,
-    createStudentSupport,
     sendMessage,
   } = useChat();
 
@@ -41,23 +40,8 @@ export default function StudentSupportChat() {
   }, [userUID, userRole, isConnected]);
 
   const initializeChat = async () => {
-    try {
-      const conversationID = `support__${userUID}`;
-      
-      // Try to load existing, or create if doesn't exist
-      await loadConversation(conversationID);
-    } catch (err: any) {
-      if (err?.code === 'INVALID_CONVERSATION') {
-        // Create new conversation
-        try {
-          await createStudentSupport();
-          const conversationID = `support__${userUID}`;
-          await loadConversation(conversationID);
-        } catch (createErr) {
-          console.error('Failed to create conversation:', createErr);
-        }
-      }
-    }
+    const conversationID = `support:${userUID}`;
+    await loadConversation(conversationID);
   };
 
   // ========================================================================
@@ -79,7 +63,7 @@ export default function StudentSupportChat() {
       return;
     }
 
-    await sendMessage(messageInput.trim());
+    await sendMessage(currentConversation.conversationID, messageInput.trim());
   };
 
   // ========================================================================
@@ -110,7 +94,7 @@ export default function StudentSupportChat() {
           <div>
             <h1 className="text-xl font-bold">Equipment Support Chat</h1>
             <p className="text-xs opacity-75">
-              {currentConversation?.isClosed ? 'Conversation closed' : 'Chat with admin'}
+              {currentConversation?.status === 'closed' ? 'Conversation closed' : 'Chat with admin'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -154,7 +138,7 @@ export default function StudentSupportChat() {
             >
               <div className="chat-bubble max-w-xs lg:max-w-md">
                 <p className="text-xs font-semibold text-base-content/70 mb-1">
-                  {msg.senderName} ({msg.senderRole})
+                  {msg.senderUID === userUID ? 'You' : msg.senderUID} ({msg.senderRole})
                 </p>
                 <p>{msg.content}</p>
               </div>
@@ -168,7 +152,7 @@ export default function StudentSupportChat() {
       </div>
 
       {/* INPUT AREA */}
-      {!currentConversation?.isClosed ? (
+      {currentConversation?.status !== 'closed' ? (
         <form
           onSubmit={handleSendMessage}
           className="border-t border-base-300 p-4 bg-base-100"

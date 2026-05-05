@@ -109,12 +109,18 @@ export const ChatLayout: React.FC = () => {
                 hasMoreMessages={chat.hasMoreMessages}
                 userUID={chat.userUID}
                 userRole={chat.userRole}
+                typingUsers={
+                  chat.currentConversation
+                    ? chat.typingUsersByConversation[chat.currentConversation.conversationID] || []
+                    : []
+                }
                 onLoadMore={handleLoadMoreMessages}
               />
 
               {chat.currentConversation && (
                 <MessageComposer
                   onSend={handleSendMessage}
+                  onTyping={() => chat.signalTyping(chat.currentConversation!.conversationID)}
                   disabled={!chat.isConnected}
                   messageInput={chat.messageInput}
                   setMessageInput={chat.setMessageInput}
@@ -162,12 +168,18 @@ export const ChatLayout: React.FC = () => {
             hasMoreMessages={chat.hasMoreMessages}
             userUID={chat.userUID}
             userRole={chat.userRole}
+            typingUsers={
+              chat.currentConversation
+                ? chat.typingUsersByConversation[chat.currentConversation.conversationID] || []
+                : []
+            }
             onLoadMore={handleLoadMoreMessages}
           />
 
           {chat.currentConversation && (
             <MessageComposer
               onSend={handleSendMessage}
+              onTyping={() => chat.signalTyping(chat.currentConversation!.conversationID)}
               disabled={!chat.isConnected}
               messageInput={chat.messageInput}
               setMessageInput={chat.setMessageInput}

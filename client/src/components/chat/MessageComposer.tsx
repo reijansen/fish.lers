@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 
 interface MessageComposerProps {
   onSend: (text: string) => Promise<void>;
+  onTyping?: () => void;
   disabled: boolean;
   messageInput: string;
   setMessageInput: (text: string) => void;
@@ -16,6 +17,7 @@ interface MessageComposerProps {
 
 export const MessageComposer: React.FC<MessageComposerProps> = ({
   onSend,
+  onTyping,
   disabled,
   messageInput,
   setMessageInput,
@@ -48,7 +50,10 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
           className="textarea textarea-bordered flex-1"
           placeholder="Type a message... (Shift+Enter for new line)"
           value={messageInput}
-          onChange={(e) => setMessageInput(e.target.value)}
+          onChange={(e) => {
+            setMessageInput(e.target.value);
+            if (e.target.value.trim()) onTyping?.();
+          }}
           onKeyPress={handleKeyPress}
           disabled={disabled || isLoading}
           rows={3}

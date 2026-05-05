@@ -36,6 +36,7 @@ export interface Conversation {
   messageCount: number;
   lastMessageAt: string;
   lastMessagePreview?: string;
+  unreadCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -85,6 +86,10 @@ export interface ChatContextType {
   isSendingMessage: boolean;
   toastNotification: InboxNotification | null;
   dismissToast: () => void;
+
+  // Phase 5 UX state
+  typingUsersByConversation: Record<string, Array<{ userUID: string; userRole: ChatMessage["senderRole"] }>>;
+  signalTyping: (conversationID: string) => void;
 }
 
 // ============================================================================
@@ -117,6 +122,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [messageInput, setMessageInput] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [toastNotification, setToastNotification] = useState<InboxNotification | null>(null);
+  const [typingUsersByConversation, setTypingUsersByConversation] = useState<
+    Record<string, Array<{ userUID: string; userRole: ChatMessage["senderRole"] }>>
+  >({});
+  const typingStopTimersRef = useRef<Record<string, any>>({});
 
   // ========================================================================
   // SETUP: Firebase Auth + Socket.io Connection
@@ -140,7 +149,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
           // Connect Socket.io
           if (!socketRef.current) {
-            const socketURL = process.env.REACT_APP_SOCKET_IO_URL || 'http://localhost:5000';
+            const socketURL = import.meta.env.VITE_SOCKET_IO_URL || 'http://localhost:5000';
             socketRef.current = io(socketURL, {
               auth: { token },
               reconnection: true,
@@ -198,6 +207,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           ...prev,
           [msg.conversationID]: (prev[msg.conversationID] || 0) + 1,
         }));
+      } else {
+        // If actively viewing, mark as read up to this message.
+        socket.emit('message:read', {
+          conversationID: msg.conversationID,
+          readUpToMessageID: msg.messageID,
+        });
       }
     });
 
@@ -213,6 +228,32 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     socket.on('error', (data: any) => {
       console.error('[Chat] Socket error:', data);
       setError(data.error || 'Connection error');
+    });
+
+    // Phase 5: typing indicators
+    socket.on('user:typing', (payload: any) => {
+      const { conversationID, userUID: typingUID, userRole, isTyping } = payload || {};
+      if (!conversationID || !typingUID || typingUID === userUID) return;
+
+      setTypingUsersByConversation((prev) => {
+        const existing = prev[conversationID] || [];
+        const without = existing.filter((u) => u.userUID !== typingUID);
+        if (!isTyping) {
+          return { ...prev, [conversationID]: without };
+        }
+        return { ...prev, [conversationID]: [...without, { userUID: typingUID, userRole }] };
+      });
+
+      // Safety: auto-clear a typing indicator after 3s if no stop arrives.
+      const key = `${conversationID}:${typingUID}`;
+      const timers = typingStopTimersRef.current;
+      if (timers[key]) clearTimeout(timers[key]);
+      timers[key] = setTimeout(() => {
+        setTypingUsersByConversation((prev) => {
+          const existing = prev[conversationID] || [];
+          return { ...prev, [conversationID]: existing.filter((u) => u.userUID !== typingUID) };
+        });
+      }, 3000);
     });
   };
 
@@ -299,6 +340,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setMessages(data.items || []);
         setHasMoreMessages(data.hasMore || false);
 
+        // Phase 5: mark as read up to newest message in loaded page.
+        const newest = (data.items || [])[0] as ChatMessage | undefined;
+        if (newest?.messageID) {
+          socketRef.current?.emit('message:read', {
+            conversationID,
+            readUpToMessageID: newest.messageID,
+          });
+        }
+
         // Clear unread count for this conversation
         setUnreadCounts((prev) => {
           const updated = { ...prev };
@@ -357,6 +407,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       const data = await response.json();
       setConversations(data.conversations || []);
+      if (data.unreadCounts && typeof data.unreadCounts === 'object') {
+        setUnreadCounts(data.unreadCounts);
+      }
     } catch (err: any) {
       console.error('[Chat] Error loading conversations:', err);
       setError(err.message || 'Failed to load conversations');
@@ -364,6 +417,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setIsLoadingConversations(false);
     }
   }, [isConnected]);
+
+  // Phase 5: Debounced typing signal
+  const signalTyping = useCallback(
+    (conversationID: string) => {
+      if (!socketRef.current) return;
+
+      socketRef.current.emit('user:typing', { conversationID, isTyping: true });
+
+      const timers = typingStopTimersRef.current;
+      if (timers[conversationID]) clearTimeout(timers[conversationID]);
+      timers[conversationID] = setTimeout(() => {
+        socketRef.current?.emit('user:typing', { conversationID, isTyping: false });
+      }, 1500);
+    },
+    []
+  );
 
   // ========================================================================
   // CONTEXT VALUE
@@ -393,6 +462,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     isSendingMessage,
     toastNotification,
     dismissToast: () => setToastNotification(null),
+    typingUsersByConversation,
+    signalTyping,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

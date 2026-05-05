@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../hooks/useAuth";
-import { Home, Box, ClipboardList, BarChart2, Users, LogOut, PanelLeftClose, PanelLeftOpen, Fish, History, ShieldCheck, Table2, Bell, Megaphone } from "lucide-react";
+import { Home, Box, ClipboardList, BarChart2, Users, LogOut, PanelLeftClose, PanelLeftOpen, Fish, History, ShieldCheck, Table2, Bell, Megaphone, MessageCircle } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 interface AdminDrawerLayoutProps {
@@ -49,6 +49,7 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
 
   const menuItems = [
     { icon: <Home size={20} />, text: "Dashboard", path: "/admindashboard", active: location.pathname.startsWith("/admindashboard") },
+    { icon: <MessageCircle size={20} />, text: "Chat", path: "/chat", active: location.pathname.startsWith("/chat") },
     { icon: <Box size={20} />, text: "Inventory", path: "/inventory", active: location.pathname.startsWith("/inventory") },
     { icon: <History size={20} />, text: "Request History", path: "/admin/history", active: location.pathname.startsWith("/admin/history") },
     { icon: <Table2 size={20} />, text: "Permissions", path: "/admin/permissions", active: location.pathname.startsWith("/admin/permissions") },

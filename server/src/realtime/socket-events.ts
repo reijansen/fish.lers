@@ -10,6 +10,7 @@ import { getSocketUser, SocketUser } from "./socket-auth.js";
 import { canUserAccessConversation } from "./access-control.js";
 import { checkRateLimit } from "./rate-limiter.js";
 import { handleMessageSend, MESSAGE_CONFIG } from "./message-handler.js";
+import { ChatDataService } from "../services/chat-data.service.js";
 
 /**
  * Room naming conventions:
@@ -126,6 +127,77 @@ export function setupEventHandlers(io: SocketIOServer): void {
         handleMessageSend(io, socket, user, payload, callback);
       }
     );
+
+    // ====================================================================
+    // EVENT: user:typing
+    // Typing indicator (not persisted). Broadcast to conversation excluding sender.
+    // ====================================================================
+    socket.on("user:typing", (payload: any, callback: any) => {
+      try {
+        const { conversationID, isTyping } = payload || {};
+
+        if (!conversationID || typeof conversationID !== "string") {
+          return callback?.({ ok: false, error: "conversationID is required" });
+        }
+
+        if (typeof isTyping !== "boolean") {
+          return callback?.({ ok: false, error: "isTyping must be boolean" });
+        }
+
+        if (!canUserAccessConversation(user, conversationID)) {
+          return callback?.({ ok: false, error: "Access denied" });
+        }
+
+        const conversationRoom = `${ROOM_PREFIXES.CONVERSATION}${conversationID}`;
+        socket.to(conversationRoom).emit("user:typing", {
+          conversationID,
+          userUID: user.uid,
+          userRole: user.superAdmin ? "superAdmin" : user.admin ? "admin" : "student",
+          isTyping,
+          timestamp: Date.now(),
+        });
+
+        callback?.({ ok: true });
+      } catch (error: any) {
+        callback?.({ ok: false, error: error.message || "Typing event failed" });
+      }
+    });
+
+    // ====================================================================
+    // EVENT: message:read
+    // Persistent read receipt update (server-backed). Broadcast to conversation.
+    // ====================================================================
+    socket.on("message:read", async (payload: any, callback: any) => {
+      try {
+        const { conversationID, readUpToMessageID } = payload || {};
+
+        if (!conversationID || typeof conversationID !== "string") {
+          return callback?.({ ok: false, error: "conversationID is required" });
+        }
+
+        if (!readUpToMessageID || typeof readUpToMessageID !== "string") {
+          return callback?.({ ok: false, error: "readUpToMessageID is required" });
+        }
+
+        if (!canUserAccessConversation(user, conversationID)) {
+          return callback?.({ ok: false, error: "Access denied" });
+        }
+
+        await ChatDataService.markConversationAsRead(conversationID, user.uid, readUpToMessageID);
+
+        const conversationRoom = `${ROOM_PREFIXES.CONVERSATION}${conversationID}`;
+        io.to(conversationRoom).emit("message:read", {
+          conversationID,
+          userUID: user.uid,
+          readUpToMessageID,
+          timestamp: Date.now(),
+        });
+
+        callback?.({ ok: true });
+      } catch (error: any) {
+        callback?.({ ok: false, error: error.message || "Read receipt failed" });
+      }
+    });
 
     // ====================================================================
     // EVENT: ping
