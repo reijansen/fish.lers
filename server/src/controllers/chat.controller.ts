@@ -61,7 +61,7 @@ export async function getConversationMessages(
       superAdmin: req.user!.superAdmin || false,
     };
 
-    if (!canUserAccessConversation(user, conversationId)) {
+    if (!(await canUserAccessConversation(user, conversationId))) {
       console.warn(
         `[API] Access denied: ${user.uid} cannot access ${conversationId}`
       );
@@ -148,8 +148,8 @@ export async function getUserConversations(
     const isSuperAdmin = req.user!.superAdmin || false;
 
     if (isSuperAdmin) {
-      // SuperAdmins see all conversations
-      conversations = await ChatRepository.getSuperAdminConversations();
+      // Privacy: superAdmins see only conversations they participate in
+      conversations = await ChatRepository.getSuperAdminConversations(userId);
     } else if (isAdmin) {
       // Admins see support + their escalations
       conversations = await ChatRepository.getAdminConversations(userId);

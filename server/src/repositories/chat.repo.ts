@@ -216,7 +216,7 @@ export class ChatRepository {
     const conversationsRef = db.collection(CONVERSATIONS_COLLECTION);
 
     const query = conversationsRef
-      .where("studentUID", "==", studentUID)
+      .where("participants", "array-contains", studentUID)
       .where("type", "==", "support")
       .orderBy("lastMessageAt", "desc")
       .limit(50);
@@ -236,54 +236,31 @@ export class ChatRepository {
     const db = getFirestore();
     const conversationsRef = db.collection(CONVERSATIONS_COLLECTION);
 
-    // Query 1: All student support conversations
-    const supportQuery = conversationsRef
-      .where("type", "==", "support")
+    // Privacy: admins only see conversations they are explicitly a participant of.
+    const query = conversationsRef
+      .where("participants", "array-contains", adminUID)
       .orderBy("lastMessageAt", "desc")
-      .limit(25);
+      .limit(50);
 
-    // Query 2: Admin's own escalation conversations
-    const escalationQuery = conversationsRef
-      .where("type", "==", "escalation")
-      .where("adminUID", "==", adminUID)
-      .orderBy("lastMessageAt", "desc")
-      .limit(25);
+    const querySnap = await query.get();
 
-    const [supportSnap, escalationSnap] = await Promise.all([
-      supportQuery.get(),
-      escalationQuery.get(),
-    ]);
-
-    const conversations: Conversation[] = [];
-    supportSnap.forEach((docSnap) => {
-      conversations.push({
-        conversationID: docSnap.id,
-        ...(docSnap.data() || {}),
-      } as Conversation);
-    });
-    escalationSnap.forEach((docSnap) => {
-      conversations.push({
-        conversationID: docSnap.id,
-        ...(docSnap.data() || {}),
-      } as Conversation);
-    });
-
-    // Sort by lastMessageAt descending
-    conversations.sort(
-      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
-    );
-
-    return conversations;
+    return querySnap.docs.map((docSnap) => ({
+      conversationID: docSnap.id,
+      ...(docSnap.data() || {}),
+    } as Conversation));
   }
 
   /**
    * List conversations for a superAdmin (all conversations).
    */
-  static async getSuperAdminConversations(): Promise<Conversation[]> {
+  static async getSuperAdminConversations(superAdminUID: string): Promise<Conversation[]> {
     const db = getFirestore();
     const conversationsRef = db.collection(CONVERSATIONS_COLLECTION);
 
+    // Privacy: superAdmins only see conversations they are participants of.
+    // They can still join escalations by conversation ID and will be added as participants on join.
     const query = conversationsRef
+      .where("participants", "array-contains", superAdminUID)
       .orderBy("lastMessageAt", "desc")
       .limit(50);
 

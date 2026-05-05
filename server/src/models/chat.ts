@@ -50,7 +50,10 @@ export interface Conversation {
  * What fields can be updated by the client for a conversation.
  */
 export type ConversationUpdateInput = Partial<
-  Pick<Conversation, "status" | "escalationReason" | "participants" | "messageCount" | "lastMessageAt" | "lastMessagePreview">
+  Pick<
+    Conversation,
+    "status" | "escalationReason" | "participants" | "messageCount" | "lastMessageAt" | "lastMessagePreview" | "adminUID"
+  >
 >;
 
 /**

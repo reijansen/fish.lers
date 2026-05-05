@@ -13,6 +13,7 @@ import { handleMessageSend, MESSAGE_CONFIG } from "./message-handler.js";
 import { ChatDataService } from "../services/chat-data.service.js";
 import { REALTIME_CONFIG } from "./config.js";
 import type { ChatSocketAck, ConversationJoinPayload, TypingPayload, ReadPayload } from "./protocol.js";
+import { ChatRepository } from "../repositories/chat.repo.js";
 
 /**
  * Room naming conventions:
@@ -62,7 +63,7 @@ export function setupEventHandlers(io: SocketIOServer): void {
     // EVENT: conversation:join
     // Validate access to conversation and join room
     // ====================================================================
-    socket.on("conversation:join", (payload: any, callback: any) => {
+    socket.on("conversation:join", async (payload: any, callback: any) => {
       try {
         const { conversationID } = (payload || {}) as Partial<ConversationJoinPayload>;
 
@@ -75,7 +76,8 @@ export function setupEventHandlers(io: SocketIOServer): void {
         }
 
         // Check if user can access this conversation
-        if (!canUserAccessConversation(user, conversationID)) {
+        const canAccess = await canUserAccessConversation(user, conversationID);
+        if (!canAccess) {
           console.warn(
             `[Rooms] Access denied: ${user.uid} cannot access ${conversationID}`
           );
@@ -84,6 +86,28 @@ export function setupEventHandlers(io: SocketIOServer): void {
             code: "FORBIDDEN",
             error: "Access denied",
           });
+        }
+
+        // Privacy: ensure the joiner is a participant for future visibility (support claim / escalation join).
+        const convo = await ChatRepository.getConversation(conversationID);
+        if (convo) {
+          const participants = Array.isArray(convo.participants) ? convo.participants : [];
+          if (!participants.includes(user.uid)) {
+            const parsed = ChatDataService.parseConversationID(conversationID);
+            const isSupport = parsed?.type === "support";
+
+            // Claim support thread for this admin/superAdmin if not already claimed.
+            if (isSupport && (user.admin || user.superAdmin) && !convo.adminUID) {
+              await ChatRepository.updateConversation(conversationID, {
+                participants: [...participants, user.uid],
+                adminUID: user.uid,
+              });
+            } else {
+              await ChatRepository.updateConversation(conversationID, {
+                participants: [...participants, user.uid],
+              });
+            }
+          }
         }
 
         // Join conversation room
@@ -145,7 +169,7 @@ export function setupEventHandlers(io: SocketIOServer): void {
     // EVENT: user:typing
     // Typing indicator (not persisted). Broadcast to conversation excluding sender.
     // ====================================================================
-    socket.on("user:typing", (payload: any, callback: any) => {
+    socket.on("user:typing", async (payload: any, callback: any) => {
       try {
         if (
           !checkRateLimit(
@@ -172,7 +196,7 @@ export function setupEventHandlers(io: SocketIOServer): void {
           return callback?.({ ok: false, code: "BAD_REQUEST", error: "isTyping must be boolean" } satisfies ChatSocketAck<{}>);
         }
 
-        if (!canUserAccessConversation(user, conversationID)) {
+        if (!(await canUserAccessConversation(user, conversationID))) {
           return callback?.({ ok: false, code: "FORBIDDEN", error: "Access denied" } satisfies ChatSocketAck<{}>);
         }
 
@@ -222,7 +246,7 @@ export function setupEventHandlers(io: SocketIOServer): void {
           return callback?.({ ok: false, code: "BAD_REQUEST", error: "readUpToMessageID is required" } satisfies ChatSocketAck<{}>);
         }
 
-        if (!canUserAccessConversation(user, conversationID)) {
+        if (!(await canUserAccessConversation(user, conversationID))) {
           return callback?.({ ok: false, code: "FORBIDDEN", error: "Access denied" } satisfies ChatSocketAck<{}>);
         }
 

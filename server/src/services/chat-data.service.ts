@@ -363,7 +363,7 @@ export class ChatDataService {
    */
   static async getConversationsForUser(user: UserRole): Promise<Conversation[]> {
     if (user.isSuperAdmin) {
-      return ChatRepository.getSuperAdminConversations();
+      return ChatRepository.getSuperAdminConversations(user.uid);
     }
 
     if (user.isAdmin) {

@@ -85,7 +85,7 @@ export async function handleMessageSend(
     // Authorization Check
     // ====================================================================
 
-    if (!canUserWriteToConversation(user, conversationID)) {
+    if (!(await canUserWriteToConversation(user, conversationID))) {
       console.warn(
         `[Message] Access denied: ${user.uid} cannot write to ${conversationID}`
       );
