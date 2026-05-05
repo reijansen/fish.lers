@@ -4,6 +4,10 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, g
 import { FileWarning, Clock, CheckCircle, AlertCircle, Plus } from 'lucide-react'
 import MobileStatsPager from '../../components/MobileStatsPager'
 
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
+
 type IssueCondition = 'damaged' | 'missing' | 'detail'
 
 interface ModalIssueEntry {
@@ -253,6 +257,49 @@ const AdminAccountabilities: React.FC = () => {
     })
   }, [modalEditable, persistItemResolutions])
 
+  const exportTablePDF = () => {
+    const pdf = new jsPDF();
+
+    pdf.setFontSize(16);
+    pdf.text("Admin Accountabilities Report", 14, 15);
+
+    pdf.setFontSize(10);
+    pdf.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
+
+    const dataToExport = filtered;
+
+    const tableData = dataToExport.map(r => {
+      const studentName =
+        studentNameByNumber[r.studentNumber] ||
+        r.studentName ||
+        r.createdByName ||
+        (r.createdBy ? userInfoById[r.createdBy]?.displayName : undefined) ||
+        r.createdBy ||
+        "Unknown";
+
+      const studentNumber =
+        r.studentNumber ||
+        (r.createdBy ? userInfoById[r.createdBy]?.studentNumber : undefined) ||
+        "No student number";
+
+      return [
+        r.due || "No date",
+        studentName,
+        studentNumber,
+        formatDetails(r.details) || "No details",
+        r.status || "pending"
+      ];
+    });
+
+    autoTable(pdf, {
+      startY: 28,
+      head: [["Date Due", "Name", "Student Number", "Details", "Status"]],
+      body: tableData,
+    });
+
+    pdf.save(`admin-accountabilities-${tab}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   return (
     <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
@@ -265,6 +312,10 @@ const AdminAccountabilities: React.FC = () => {
           <button className="btn btn-primary btn-sm gap-2" onClick={() => setAddOpen(true)}>
             <Plus className="w-4 h-4" />
             Add New Accountability
+          </button>
+
+          <button className="btn btn-primary btn-sm gap-2" onClick={exportTablePDF}>
+            Export as PDF
           </button>
         </div>
       </div>

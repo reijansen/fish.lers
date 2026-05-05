@@ -1,6 +1,7 @@
 import { getAuth } from "../config/firebase.js";
 import { User, UserUpdateInput, AuthPayload } from "../models/user.js";
 import { UserRepository } from "../repositories/users.repo.js";
+import { getUserFromMongo } from "./authFallback.js";
 
 /**
  * Auth Service.
@@ -56,8 +57,31 @@ export class AuthService {
     try {
       decodedToken = await getAuth().verifyIdToken(token);
     } catch (error: any) {
-      throw new Error("Invalid authentication token");
-    }
+      console.warn("⚠️ Firebase auth failed, trying MongoDB fallback...");
+
+      // Decode JWT manually
+      try {
+        const payload = JSON.parse(
+          Buffer.from(token.split('.')[1], 'base64').toString('utf-8')
+        );
+
+        const uid = payload.uid || payload.user_id || payload.sub;
+        if (!uid) throw new Error("Invalid token payload");
+
+        // Check expiry
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp < now) {
+          throw new Error("Token has expired");
+        }
+
+        const user = await getUserFromMongo(uid);
+        if (!user) throw new Error("User not found in backup");
+
+        return user;
+      } catch (err: any) {
+        throw new Error(err.message || 'Invalid authentication token');
+      }
+  }
 
     let user = await UserRepository.getById(decodedToken.uid);
 
@@ -83,10 +107,19 @@ export class AuthService {
 
   /**
    * Get user by ID.
+   * Falls back to MongoDB if Firebase/Firestore is down.
    */
   static async getUserById(uid: string): Promise<User> {
-    const user = await UserRepository.getById(uid);
+    
+    try {
+      const user = await UserRepository.getById(uid);
+      if (user) return user;
+    } catch (firestoreError: any) {
+      console.warn("⚠️ Firestore down — trying MongoDB fallback...");
+    }
 
+    // Fallback to MongoDB
+    const user = await getUserFromMongo(uid);
     if (!user) {
       throw new Error(`User not found: ${uid}`);
     }
