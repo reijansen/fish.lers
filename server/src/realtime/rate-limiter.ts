@@ -11,6 +11,10 @@ interface RateLimitEntry {
 
 const rateLimitMap = new Map<string, RateLimitEntry>();
 
+function keyFor(userId: string, bucket?: string): string {
+  return bucket ? `${userId}:${bucket}` : userId;
+}
+
 /**
  * Check if user has exceeded rate limit.
  * Returns true if within limit, false if exceeded.
@@ -22,10 +26,12 @@ const rateLimitMap = new Map<string, RateLimitEntry>();
 export function checkRateLimit(
   userId: string,
   maxMessages: number = 10,
-  windowMs: number = 10000
+  windowMs: number = 10000,
+  bucket?: string
 ): boolean {
   const now = Date.now();
-  const entry = rateLimitMap.get(userId) || { timestamps: [] };
+  const key = keyFor(userId, bucket);
+  const entry = rateLimitMap.get(key) || { timestamps: [] };
 
   // Remove timestamps outside the window
   entry.timestamps = entry.timestamps.filter((ts) => now - ts < windowMs);
@@ -37,7 +43,7 @@ export function checkRateLimit(
 
   // Add current timestamp and update entry
   entry.timestamps.push(now);
-  rateLimitMap.set(userId, entry);
+  rateLimitMap.set(key, entry);
 
   return true;
 }

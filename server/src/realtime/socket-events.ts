@@ -11,6 +11,8 @@ import { canUserAccessConversation } from "./access-control.js";
 import { checkRateLimit } from "./rate-limiter.js";
 import { handleMessageSend, MESSAGE_CONFIG } from "./message-handler.js";
 import { ChatDataService } from "../services/chat-data.service.js";
+import { REALTIME_CONFIG } from "./config.js";
+import type { ChatSocketAck, ConversationJoinPayload, TypingPayload, ReadPayload } from "./protocol.js";
 
 /**
  * Room naming conventions:
@@ -62,11 +64,12 @@ export function setupEventHandlers(io: SocketIOServer): void {
     // ====================================================================
     socket.on("conversation:join", (payload: any, callback: any) => {
       try {
-        const { conversationID } = payload || {};
+        const { conversationID } = (payload || {}) as Partial<ConversationJoinPayload>;
 
         if (!conversationID || typeof conversationID !== "string") {
           return callback({
             ok: false,
+            code: "BAD_REQUEST",
             error: "conversationID is required",
           });
         }
@@ -78,6 +81,7 @@ export function setupEventHandlers(io: SocketIOServer): void {
           );
           return callback({
             ok: false,
+            code: "FORBIDDEN",
             error: "Access denied",
           });
         }
@@ -102,6 +106,7 @@ export function setupEventHandlers(io: SocketIOServer): void {
         );
         callback({
           ok: false,
+          code: "INTERNAL",
           error: error.message,
         });
       }
@@ -115,10 +120,18 @@ export function setupEventHandlers(io: SocketIOServer): void {
       "message:send",
       (payload: any, callback: any) => {
         // Check rate limit
-        if (!checkRateLimit(user.uid, MESSAGE_CONFIG.RATE_LIMIT_MAX_MESSAGES, MESSAGE_CONFIG.RATE_LIMIT_WINDOW_MS)) {
+        if (
+          !checkRateLimit(
+            user.uid,
+            MESSAGE_CONFIG.RATE_LIMIT_MAX_MESSAGES,
+            MESSAGE_CONFIG.RATE_LIMIT_WINDOW_MS,
+            "message"
+          )
+        ) {
           console.warn(`[Message] Rate limit exceeded for user ${user.uid}`);
           return callback({
             ok: false,
+            code: "RATE_LIMITED",
             error: "Rate limit exceeded. Please wait before sending more messages.",
           });
         }
@@ -134,18 +147,33 @@ export function setupEventHandlers(io: SocketIOServer): void {
     // ====================================================================
     socket.on("user:typing", (payload: any, callback: any) => {
       try {
-        const { conversationID, isTyping } = payload || {};
+        if (
+          !checkRateLimit(
+            user.uid,
+            REALTIME_CONFIG.typing.rateMax,
+            REALTIME_CONFIG.typing.rateWindowMs,
+            "typing"
+          )
+        ) {
+          return callback?.({
+            ok: false,
+            code: "RATE_LIMITED",
+            error: "Typing rate limit exceeded",
+          } satisfies ChatSocketAck<{}>);
+        }
+
+        const { conversationID, isTyping } = (payload || {}) as Partial<TypingPayload>;
 
         if (!conversationID || typeof conversationID !== "string") {
-          return callback?.({ ok: false, error: "conversationID is required" });
+          return callback?.({ ok: false, code: "BAD_REQUEST", error: "conversationID is required" } satisfies ChatSocketAck<{}>);
         }
 
         if (typeof isTyping !== "boolean") {
-          return callback?.({ ok: false, error: "isTyping must be boolean" });
+          return callback?.({ ok: false, code: "BAD_REQUEST", error: "isTyping must be boolean" } satisfies ChatSocketAck<{}>);
         }
 
         if (!canUserAccessConversation(user, conversationID)) {
-          return callback?.({ ok: false, error: "Access denied" });
+          return callback?.({ ok: false, code: "FORBIDDEN", error: "Access denied" } satisfies ChatSocketAck<{}>);
         }
 
         const conversationRoom = `${ROOM_PREFIXES.CONVERSATION}${conversationID}`;
@@ -157,9 +185,9 @@ export function setupEventHandlers(io: SocketIOServer): void {
           timestamp: Date.now(),
         });
 
-        callback?.({ ok: true });
+        callback?.({ ok: true } satisfies ChatSocketAck<{}>);
       } catch (error: any) {
-        callback?.({ ok: false, error: error.message || "Typing event failed" });
+        callback?.({ ok: false, code: "INTERNAL", error: error.message || "Typing event failed" } satisfies ChatSocketAck<{}>);
       }
     });
 
@@ -169,18 +197,33 @@ export function setupEventHandlers(io: SocketIOServer): void {
     // ====================================================================
     socket.on("message:read", async (payload: any, callback: any) => {
       try {
-        const { conversationID, readUpToMessageID } = payload || {};
+        if (
+          !checkRateLimit(
+            user.uid,
+            REALTIME_CONFIG.read.rateMax,
+            REALTIME_CONFIG.read.rateWindowMs,
+            "read"
+          )
+        ) {
+          return callback?.({
+            ok: false,
+            code: "RATE_LIMITED",
+            error: "Read receipt rate limit exceeded",
+          } satisfies ChatSocketAck<{}>);
+        }
+
+        const { conversationID, readUpToMessageID } = (payload || {}) as Partial<ReadPayload>;
 
         if (!conversationID || typeof conversationID !== "string") {
-          return callback?.({ ok: false, error: "conversationID is required" });
+          return callback?.({ ok: false, code: "BAD_REQUEST", error: "conversationID is required" } satisfies ChatSocketAck<{}>);
         }
 
         if (!readUpToMessageID || typeof readUpToMessageID !== "string") {
-          return callback?.({ ok: false, error: "readUpToMessageID is required" });
+          return callback?.({ ok: false, code: "BAD_REQUEST", error: "readUpToMessageID is required" } satisfies ChatSocketAck<{}>);
         }
 
         if (!canUserAccessConversation(user, conversationID)) {
-          return callback?.({ ok: false, error: "Access denied" });
+          return callback?.({ ok: false, code: "FORBIDDEN", error: "Access denied" } satisfies ChatSocketAck<{}>);
         }
 
         await ChatDataService.markConversationAsRead(conversationID, user.uid, readUpToMessageID);
@@ -193,9 +236,9 @@ export function setupEventHandlers(io: SocketIOServer): void {
           timestamp: Date.now(),
         });
 
-        callback?.({ ok: true });
+        callback?.({ ok: true } satisfies ChatSocketAck<{}>);
       } catch (error: any) {
-        callback?.({ ok: false, error: error.message || "Read receipt failed" });
+        callback?.({ ok: false, code: "INTERNAL", error: error.message || "Read receipt failed" } satisfies ChatSocketAck<{}>);
       }
     });
 

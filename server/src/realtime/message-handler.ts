@@ -10,14 +10,16 @@ import { canUserWriteToConversation } from "./access-control.js";
 import { ChatDataService } from "../services/chat-data.service.js";
 import { ChatRepository } from "../repositories/chat.repo.js";
 import { ROOM_PREFIXES } from "./socket-events.js";
+import { REALTIME_CONFIG } from "./config.js";
+import type { ChatSocketAck } from "./protocol.js";
 
 /**
  * Configuration for message handling.
  */
 export const MESSAGE_CONFIG = {
-  MAX_MESSAGE_LENGTH: 2000,
-  RATE_LIMIT_MAX_MESSAGES: 10,
-  RATE_LIMIT_WINDOW_MS: 10000,
+  MAX_MESSAGE_LENGTH: REALTIME_CONFIG.message.maxLength,
+  RATE_LIMIT_MAX_MESSAGES: REALTIME_CONFIG.message.rateMax,
+  RATE_LIMIT_WINDOW_MS: REALTIME_CONFIG.message.rateWindowMs,
 } as const;
 
 /**
@@ -41,6 +43,7 @@ export async function handleMessageSend(
     if (!conversationID || typeof conversationID !== "string") {
       return callback({
         ok: false,
+        code: "BAD_REQUEST",
         error: "conversationID is required",
       });
     }
@@ -48,6 +51,7 @@ export async function handleMessageSend(
     if (!text || typeof text !== "string") {
       return callback({
         ok: false,
+        code: "BAD_REQUEST",
         error: "Message text is required",
       });
     }
@@ -56,6 +60,7 @@ export async function handleMessageSend(
     if (trimmedText.length === 0) {
       return callback({
         ok: false,
+        code: "BAD_REQUEST",
         error: "Message cannot be empty",
       });
     }
@@ -63,7 +68,16 @@ export async function handleMessageSend(
     if (trimmedText.length > MESSAGE_CONFIG.MAX_MESSAGE_LENGTH) {
       return callback({
         ok: false,
+        code: "BAD_REQUEST",
         error: `Message exceeds ${MESSAGE_CONFIG.MAX_MESSAGE_LENGTH} character limit`,
+      });
+    }
+
+    if (trimmedText.includes("\0")) {
+      return callback({
+        ok: false,
+        code: "BAD_REQUEST",
+        error: "Message contains invalid characters",
       });
     }
 
@@ -77,6 +91,7 @@ export async function handleMessageSend(
       );
       return callback({
         ok: false,
+        code: "FORBIDDEN",
         error: "Access denied",
       });
     }
@@ -126,7 +141,16 @@ export async function handleMessageSend(
     // Acknowledge Sender
     // ====================================================================
 
-    callback({
+    const ack: ChatSocketAck<{
+      message: {
+        messageID: string;
+        conversationID: string;
+        senderUID: string;
+        senderRole: string;
+        content: string;
+        createdAt: string;
+      };
+    }> = {
       ok: true,
       message: {
         messageID: message.messageID,
@@ -136,11 +160,14 @@ export async function handleMessageSend(
         content: message.content,
         createdAt: message.createdAt,
       },
-    });
+    };
+
+    callback(ack);
   } catch (error: any) {
     console.error(`[Message] Error in message:send:`, error.message);
     callback({
       ok: false,
+      code: "INTERNAL",
       error: error.message || "Failed to send message",
     });
   }

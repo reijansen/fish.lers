@@ -126,6 +126,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     Record<string, Array<{ userUID: string; userRole: ChatMessage["senderRole"] }>>
   >({});
   const typingStopTimersRef = useRef<Record<string, any>>({});
+  const seenMessageIDsRef = useRef<Set<string>>(new Set());
+  const seenClientIDsRef = useRef<Set<string>>(new Set());
+  const [connectNonce, setConnectNonce] = useState(0);
+  const currentConversationIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    currentConversationIdRef.current = currentConversation?.conversationID || null;
+  }, [currentConversation?.conversationID]);
 
   // ========================================================================
   // SETUP: Firebase Auth + Socket.io Connection
@@ -189,6 +197,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       console.log('[Chat] Socket.io connected');
       setIsConnected(true);
       setError(null);
+      setConnectNonce((n) => n + 1);
     });
 
     socket.on('disconnect', () => {
@@ -198,11 +207,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     // Message:new - real-time message from server
     socket.on('message:new', (msg: ChatMessage) => {
+      // Dedup by messageID and/or clientMessageID
+      if (msg.messageID && seenMessageIDsRef.current.has(msg.messageID)) return;
+      const clientId = (msg as any).clientMessageID as string | undefined;
+      if (clientId && seenClientIDsRef.current.has(clientId)) return;
+
+      if (msg.messageID) seenMessageIDsRef.current.add(msg.messageID);
+      if (clientId) seenClientIDsRef.current.add(clientId);
+
       console.log('[Chat] message:new received:', msg.messageID);
       setMessages((prev) => [...prev, msg]);
 
       // Increment unread count if not viewing this conversation
-      if (currentConversation?.conversationID !== msg.conversationID) {
+      if (currentConversationIdRef.current !== msg.conversationID) {
         setUnreadCounts((prev) => ({
           ...prev,
           [msg.conversationID]: (prev[msg.conversationID] || 0) + 1,
@@ -266,7 +283,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (!socketRef.current || !text.trim()) return;
 
       setIsSendingMessage(true);
-      const clientMessageID = `${userUID}_${Date.now()}`;
+      const clientMessageID =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${userUID || 'user'}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
       return new Promise<void>((resolve) => {
         socketRef.current?.emit(
@@ -320,6 +340,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setIsLoadingMessages(true);
       setMessages([]);
       setHasMoreMessages(false);
+      seenMessageIDsRef.current = new Set();
+      seenClientIDsRef.current = new Set();
 
       try {
         // Join conversation room first
@@ -339,6 +361,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json();
         setMessages(data.items || []);
         setHasMoreMessages(data.hasMore || false);
+
+        // Seed dedupe sets from loaded history.
+        for (const item of data.items || []) {
+          if (item?.messageID) seenMessageIDsRef.current.add(item.messageID);
+        }
 
         // Phase 5: mark as read up to newest message in loaded page.
         const newest = (data.items || [])[0] as ChatMessage | undefined;
@@ -417,6 +444,19 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setIsLoadingConversations(false);
     }
   }, [isConnected]);
+
+  // Phase 6: reconnect resync
+  useEffect(() => {
+    if (!isConnected) return;
+
+    (async () => {
+      await loadConversations();
+      const currentId = currentConversationIdRef.current;
+      if (currentId) {
+        await loadConversation(currentId);
+      }
+    })();
+  }, [connectNonce, isConnected, loadConversations, loadConversation]);
 
   // Phase 5: Debounced typing signal
   const signalTyping = useCallback(
