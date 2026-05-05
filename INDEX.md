@@ -1,15 +1,22 @@
 # FishLERS FERN-MVC Refactor - Index & Quick Start
 
 ## Status
-**Phases Completed:** 1, 2, 3, 3.5  
-**Phases Remaining:** 4, 5, 6, 7  
-**Current Position:** Ready to start Phase 4 (Frontend Migration)
+
+### FERN-MVC Equipment Refactor (Original Scope)
+**Phases Completed:** 1, 2  
+**Phases Remaining:** 3, 4, 5, 6, 7  
+**Current Position:** Phases 1-2 complete (repository restructuring, backend API structure)
+
+### Real-Time Chat System (New Feature)
+**Phases Completed:** 1 (Data Model), 2 (Realtime Foundation), 3 (Messaging MVP), 4 (Client MVP UI)  
+**Phases Remaining:** 5 (Advanced Features), 6+ (Enhancements)  
+**Current Position:** Phase 4 complete - Ready for Phase 5 (Typing indicators, Read receipts)
 
 ---
 
 ## 📚 Documentation Guide
 
-### Phase Documentation (Complete Refactor Story)
+### FERN-MVC Equipment Refactor (Original Scope)
 1. **[PHASE_1_REPOSITORY_RESTRUCTURING.md](PHASE_1_REPOSITORY_RESTRUCTURING.md)** ← Start here
    - What was restructured and why
    - Before/after directory layout
@@ -23,6 +30,17 @@
 3. **[PHASE_4_MIGRATION_EXAMPLE.ts](PHASE_4_MIGRATION_EXAMPLE.ts)** ← Copy-paste code
    - Complete replacement for logicEquipment.ts
    - Shows exactly what to change
+
+### Real-Time Chat System (New Feature - Phases 1-4 Complete)
+7. **[PHASE_3_MESSAGING_MVP_COMPLETE.md](PHASE_3_MESSAGING_MVP_COMPLETE.md)** ← Backend API complete
+   - Socket.IO event handlers (message:send, inbox:notify)
+   - REST API for message history
+   - Rate limiting per user
+
+8. **[PHASE_4_CLIENT_MVP_UI_COMPLETE.md](PHASE_4_CLIENT_MVP_UI_COMPLETE.md)** ← Chat UI complete
+   - Socket.IO client integration
+   - Tailwind + DaisyUI chat components
+   - Role-specific UX (Student/Admin/SuperAdmin)
 
 ### How-To & Reference Guides
 4. **[REFACTOR_GUIDE.md](REFACTOR_GUIDE.md)** ← Setup & running servers

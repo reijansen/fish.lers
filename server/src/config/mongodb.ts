@@ -12,7 +12,8 @@ export const connectMongoDB = async (): Promise<void> => {
     await mongoose.connect(config.mongodbUri);
     isConnected = true;
     console.log('✅ MongoDB connected');
-  } catch (err) {
-    console.error('❌ MongoDB connection error:', err);
+  } catch (err: any) {
+    console.warn('⚠️  MongoDB connection failed (using Firestore-only mode):', err.message);
+    console.warn('   Chat and other Firestore features will work normally.');
   }
 };

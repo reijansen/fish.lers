@@ -2,8 +2,7 @@
  * Chat Context & Hooks (Client-side)
  * 
  * Manages chat state, Socket.io connection, and messaging logic.
- * 
- * File: client/src/context/ChatContext.tsx
+ * Integrated with Phase 3 backend (message:send, message:new, inbox:notify).
  */
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
@@ -15,31 +14,40 @@ import { auth } from '../firebase';
 // TYPES
 // ============================================================================
 
-export interface Message {
+export interface ChatMessage {
   messageID: string;
   conversationID: string;
   senderUID: string;
   senderRole: 'student' | 'admin' | 'superAdmin';
-  senderName: string;
   content: string;
   createdAt: string;
+  deletedAt?: string | null;
 }
 
-export interface ConversationMetadata {
+export interface Conversation {
   conversationID: string;
-  type: 'student_support' | 'admin_escalation';
+  type: 'support' | 'escalation';
+  status: 'active' | 'closed';
   studentUID?: string;
-  createdBy: string;
+  adminUID?: string;
+  escalationID?: string;
+  escalationReason?: string;
+  participants: string[];
+  messageCount: number;
+  lastMessageAt: string;
+  lastMessagePreview?: string;
   createdAt: string;
   updatedAt: string;
-  isClosed: boolean;
-  status: 'active' | 'closed' | 'archived';
-  lastMessageText?: string;
-  messageCount: number;
-  studentParticipant?: string;
+}
+
+export interface InboxNotification {
+  conversationID: string;
+  type: 'student_message' | 'admin_reply' | 'escalation_created' | 'superadmin_reply';
+  studentUID?: string;
+  adminUID?: string;
+  superAdminUID?: string;
   escalationID?: string;
-  escalationInitiatedBy?: string;
-  escalationReason?: string;
+  message: string;
 }
 
 export interface ChatContextType {
@@ -49,13 +57,15 @@ export interface ChatContextType {
   error: string | null;
 
   // Current conversation
-  currentConversation: ConversationMetadata | null;
-  messages: Message[];
+  currentConversation: Conversation | null;
+  messages: ChatMessage[];
   isLoadingMessages: boolean;
+  hasMoreMessages: boolean;
 
   // Conversations list
-  conversations: ConversationMetadata[];
+  conversations: Conversation[];
   isLoadingConversations: boolean;
+  unreadCounts: Record<string, number>;
 
   // User info
   userUID: string | null;
@@ -63,16 +73,18 @@ export interface ChatContextType {
 
   // Actions
   loadConversation: (conversationID: string) => Promise<void>;
-  loadConversations: (options?: { type?: string; status?: string; limit?: number }) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
-  createStudentSupport: (studentUID?: string) => Promise<string>;
-  escalateToSuperAdmin: (studentSupportConvID: string, reason: string) => Promise<string>;
-  closeConversation: (conversationID: string) => Promise<void>;
+  loadMoreMessages: (conversationID: string, beforeCursor?: string) => Promise<void>;
+  loadConversations: () => Promise<void>;
+  sendMessage: (conversationID: string, text: string) => Promise<void>;
+  joinConversation: (conversationID: string) => Promise<void>;
+  setCurrentConversation: (conv: Conversation | null) => void;
 
   // UI state
   messageInput: string;
   setMessageInput: (text: string) => void;
   isSendingMessage: boolean;
+  toastNotification: InboxNotification | null;
+  dismissToast: () => void;
 }
 
 // ============================================================================
@@ -91,18 +103,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<'student' | 'admin' | 'superAdmin' | null>(null);
 
   // Current conversation
-  const [currentConversation, setCurrentConversation] = useState<ConversationMetadata | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
 
   // Conversations list
-  const [conversations, setConversations] = useState<ConversationMetadata[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
   // UI state
   const [messageInput, setMessageInput] = useState('');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const idempotencyKeyRef = useRef<string>('');
+  const [toastNotification, setToastNotification] = useState<InboxNotification | null>(null);
 
   // ========================================================================
   // SETUP: Firebase Auth + Socket.io Connection
@@ -113,27 +127,33 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         setUserUID(user.uid);
 
-        // Get ID token with custom claims
-        const token = await user.getIdToken();
-        const decodedToken = JSON.parse(atob(token.split('.')[1]));
-        const role = decodedToken.superAdmin
-          ? 'superAdmin'
-          : decodedToken.admin
-          ? 'admin'
-          : 'student';
-        setUserRole(role);
+        try {
+          // Get ID token with custom claims
+          const token = await user.getIdToken();
+          const decodedToken = JSON.parse(atob(token.split('.')[1]));
+          const role = decodedToken.superAdmin
+            ? 'superAdmin'
+            : decodedToken.admin
+            ? 'admin'
+            : 'student';
+          setUserRole(role);
 
-        // Connect Socket.io
-        if (!socketRef.current) {
-          socketRef.current = io(process.env.REACT_APP_SOCKET_IO_URL || 'http://localhost:4000', {
-            auth: { token },
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            reconnectionAttempts: 5,
-          });
+          // Connect Socket.io
+          if (!socketRef.current) {
+            const socketURL = process.env.REACT_APP_SOCKET_IO_URL || 'http://localhost:5000';
+            socketRef.current = io(socketURL, {
+              auth: { token },
+              reconnection: true,
+              reconnectionDelay: 1000,
+              reconnectionDelayMax: 5000,
+              reconnectionAttempts: 5,
+            });
 
-          setupSocketListeners(socketRef.current);
+            setupSocketListeners(socketRef.current);
+          }
+        } catch (err) {
+          console.error('Error setting up chat:', err);
+          setError('Failed to setup chat connection');
         }
       } else {
         // Disconnect
@@ -143,6 +163,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         }
         setUserUID(null);
         setUserRole(null);
+        setIsConnected(false);
       }
       setIsLoading(false);
     });
@@ -156,50 +177,42 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const setupSocketListeners = (socket: Socket) => {
     socket.on('connect', () => {
-      console.log('Socket.io connected');
+      console.log('[Chat] Socket.io connected');
       setIsConnected(true);
       setError(null);
     });
 
     socket.on('disconnect', () => {
-      console.log('Socket.io disconnected');
+      console.log('[Chat] Socket.io disconnected');
       setIsConnected(false);
     });
 
-    socket.on('message_received', (data: Message) => {
-      setMessages((prev) => [...prev, data]);
-    });
+    // Message:new - real-time message from server
+    socket.on('message:new', (msg: ChatMessage) => {
+      console.log('[Chat] message:new received:', msg.messageID);
+      setMessages((prev) => [...prev, msg]);
 
-    socket.on('conversation_loaded', (data: { metadata: ConversationMetadata; messages: Message[] }) => {
-      setCurrentConversation(data.metadata);
-      setMessages(data.messages);
-      setIsLoadingMessages(false);
-    });
-
-    socket.on('conversations_listed', (data: { conversations: ConversationMetadata[] }) => {
-      setConversations(data.conversations);
-      setIsLoadingConversations(false);
-    });
-
-    socket.on('message_sent', (data: { messageID: string; status: string }) => {
-      setIsSendingMessage(false);
-      setMessageInput('');
-    });
-
-    socket.on('conversation_created', (data: { conversationID: string; status: string }) => {
-      // Optionally refresh conversations list
-      console.log('Conversation created:', data);
-    });
-
-    socket.on('conversation_closed', (data: { conversationID: string; closedAt: string }) => {
-      if (currentConversation?.conversationID === data.conversationID) {
-        setCurrentConversation((prev) => (prev ? { ...prev, isClosed: true } : null));
+      // Increment unread count if not viewing this conversation
+      if (currentConversation?.conversationID !== msg.conversationID) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [msg.conversationID]: (prev[msg.conversationID] || 0) + 1,
+        }));
       }
     });
 
-    socket.on('error', (data: { code: string; message: string }) => {
-      console.error('Socket error:', data);
-      setError(data.message);
+    // Inbox:notify - notification event
+    socket.on('inbox:notify', (notif: InboxNotification) => {
+      console.log('[Chat] inbox:notify received:', notif.type);
+      // Show toast notification
+      setToastNotification(notif);
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => setToastNotification(null), 5000);
+    });
+
+    socket.on('error', (data: any) => {
+      console.error('[Chat] Socket error:', data);
+      setError(data.error || 'Connection error');
     });
   };
 
@@ -208,83 +221,30 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // ========================================================================
 
   const sendMessage = useCallback(
-    async (content: string) => {
-      if (!socketRef.current || !currentConversation || isSendingMessage) {
-        return;
-      }
+    async (conversationID: string, text: string) => {
+      if (!socketRef.current || !text.trim()) return;
 
       setIsSendingMessage(true);
-      idempotencyKeyRef.current = `${userUID}_${Date.now()}_${Math.random()}`;
+      const clientMessageID = `${userUID}_${Date.now()}`;
 
-      socketRef.current.emit('send_message', {
-        conversationID: currentConversation.conversationID,
-        content,
-        idempotencyKey: idempotencyKeyRef.current,
-      });
-    },
-    [currentConversation, isSendingMessage, userUID]
-  );
-
-  const loadConversation = useCallback(async (conversationID: string) => {
-    if (!socketRef.current) return;
-
-    setIsLoadingMessages(true);
-    socketRef.current.emit('load_conversation', {
-      conversationID,
-      limit: 50,
-    });
-  }, []);
-
-  const loadConversations = useCallback(
-    async (options?: { type?: string; status?: string; limit?: number }) => {
-      if (!socketRef.current) return;
-
-      setIsLoadingConversations(true);
-      socketRef.current.emit('list_conversations', {
-        type: options?.type,
-        status: options?.status || 'active',
-        limit: options?.limit || 20,
-        offset: 0,
-      });
-    },
-    []
-  );
-
-  const createStudentSupport = useCallback(
-    async (studentUID?: string): Promise<string> => {
-      if (!socketRef.current) throw new Error('Socket not connected');
-
-      return new Promise((resolve, reject) => {
-        socketRef.current?.emit('create_student_support_conversation', { studentUID }, (data: any) => {
-          if (data?.error) {
-            reject(new Error(data.error));
-          } else {
-            resolve(data?.conversationID || '');
-          }
-        });
-      });
-    },
-    []
-  );
-
-  const escalateToSuperAdmin = useCallback(
-    async (studentSupportConvID: string, reason: string): Promise<string> => {
-      if (!socketRef.current) throw new Error('Socket not connected');
-
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve) => {
         socketRef.current?.emit(
-          'escalate_to_superadmin',
+          'message:send',
           {
-            studentSupportConversationID: studentSupportConvID,
-            reason,
-            idempotencyKey: `${userUID}_${Date.now()}`,
+            conversationID,
+            text: text.trim(),
+            clientMessageID,
           },
-          (data: any) => {
-            if (data?.error) {
-              reject(new Error(data.error));
+          (response: any) => {
+            if (response.ok) {
+              console.log('[Chat] Message sent:', response.message.messageID);
+              setMessageInput('');
             } else {
-              resolve(data?.conversationID || '');
+              console.error('[Chat] Message send failed:', response.error);
+              setError(response.error || 'Failed to send message');
             }
+            setIsSendingMessage(false);
+            resolve();
           }
         );
       });
@@ -292,14 +252,121 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     [userUID]
   );
 
-  const closeConversation = useCallback(async (conversationID: string) => {
+  const joinConversation = useCallback(async (conversationID: string) => {
     if (!socketRef.current) return;
 
-    socketRef.current.emit('close_conversation', { conversationID });
+    return new Promise<void>((resolve) => {
+      socketRef.current?.emit(
+        'conversation:join',
+        { conversationID },
+        (response: any) => {
+          if (response.ok) {
+            console.log('[Chat] Joined conversation:', conversationID);
+          } else {
+            console.error('[Chat] Join failed:', response.error);
+            setError(response.error || 'Failed to join conversation');
+          }
+          resolve();
+        }
+      );
+    });
   }, []);
 
+  const loadConversation = useCallback(
+    async (conversationID: string) => {
+      if (!isConnected) return;
+
+      setIsLoadingMessages(true);
+      setMessages([]);
+      setHasMoreMessages(false);
+
+      try {
+        // Join conversation room first
+        await joinConversation(conversationID);
+
+        // Load initial messages via REST API (pagination)
+        const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(''));
+        const response = await fetch(
+          `http://localhost:5000/api/chat/${conversationID}/messages?limit=50`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to load messages');
+
+        const data = await response.json();
+        setMessages(data.items || []);
+        setHasMoreMessages(data.hasMore || false);
+
+        // Clear unread count for this conversation
+        setUnreadCounts((prev) => {
+          const updated = { ...prev };
+          delete updated[conversationID];
+          return updated;
+        });
+      } catch (err: any) {
+        console.error('[Chat] Error loading conversation:', err);
+        setError(err.message || 'Failed to load conversation');
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    },
+    [isConnected, joinConversation]
+  );
+
+  const loadMoreMessages = useCallback(
+    async (conversationID: string, beforeCursor?: string) => {
+      if (!isConnected) return;
+
+      try {
+        const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(''));
+        const url = new URL(`http://localhost:5000/api/chat/${conversationID}/messages`);
+        url.searchParams.append('limit', '50');
+        if (beforeCursor) url.searchParams.append('before', beforeCursor);
+
+        const response = await fetch(url.toString(), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) throw new Error('Failed to load more messages');
+
+        const data = await response.json();
+        setMessages((prev) => [...(data.items || []), ...prev]);
+        setHasMoreMessages(data.hasMore || false);
+      } catch (err: any) {
+        console.error('[Chat] Error loading more messages:', err);
+        setError(err.message || 'Failed to load more messages');
+      }
+    },
+    [isConnected]
+  );
+
+  const loadConversations = useCallback(async () => {
+    if (!isConnected) return;
+
+    setIsLoadingConversations(true);
+
+    try {
+      const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(''));
+      const response = await fetch('http://localhost:5000/api/chat/conversations?limit=50', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error('Failed to load conversations');
+
+      const data = await response.json();
+      setConversations(data.conversations || []);
+    } catch (err: any) {
+      console.error('[Chat] Error loading conversations:', err);
+      setError(err.message || 'Failed to load conversations');
+    } finally {
+      setIsLoadingConversations(false);
+    }
+  }, [isConnected]);
+
   // ========================================================================
-  // RENDER
+  // CONTEXT VALUE
   // ========================================================================
 
   const value: ChatContextType = {
@@ -309,25 +376,32 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     currentConversation,
     messages,
     isLoadingMessages,
+    hasMoreMessages,
     conversations,
     isLoadingConversations,
+    unreadCounts,
     userUID,
     userRole,
     loadConversation,
+    loadMoreMessages,
     loadConversations,
     sendMessage,
-    createStudentSupport,
-    escalateToSuperAdmin,
-    closeConversation,
+    joinConversation,
+    setCurrentConversation,
     messageInput,
     setMessageInput,
     isSendingMessage,
+    toastNotification,
+    dismissToast: () => setToastNotification(null),
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }
 
-export function useChat() {
+/**
+ * Hook to use chat context.
+ */
+export function useChat(): ChatContextType {
   const context = useContext(ChatContext);
   if (!context) {
     throw new Error('useChat must be used within ChatProvider');

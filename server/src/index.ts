@@ -16,7 +16,14 @@ async function main() {
 
     // Initialize Firebase Admin SDK
     initializeFirebase(config);
-    await connectMongoDB();
+    
+    // Connect to MongoDB (non-blocking - use Firestore if unavailable)
+    try {
+      await connectMongoDB();
+    } catch (error) {
+      console.warn('⚠️  MongoDB connection skipped - using Firestore-only mode');
+    }
+    
     startFirestoreListeners();
 
     // Create and start Express app
