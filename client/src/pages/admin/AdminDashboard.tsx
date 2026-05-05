@@ -983,10 +983,10 @@ const AdminDashboard: React.FC = () => {
           )}
           </div>
           <button
-            className="btn btn-outline btn-sm"
+            className="btn btn-primary btn-sm min-h-11"
             onClick={() => navigate('/admin/announcements/create')}
           >
-            Create Announcement
+            + Create Announcement
           </button>
         </div>
       </div>

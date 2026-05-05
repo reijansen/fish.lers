@@ -379,79 +379,80 @@ export default function HomeStudent() {
       {/* Header Section */}
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-bold leading-tight">Student Dashboard</h1>
-
-          {/* Notification dropdown */}
-          <div className="relative shrink-0">
-          <button className="btn btn-ghost btn-circle" onClick={toggleNotif}>
-            <div className="indicator">
-              <Bell className="w-5 h-5" />
-              {recentNotifications.length > 0 && (
-                <span className="indicator-item badge badge-error badge-xs"></span>
-              )}
-            </div>
-          </button>
-          {notifOpen && (
-            <>
-              {/* Backdrop to close dropdown when clicking outside */}
-              <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)}></div>
-              <div className="absolute right-0 mt-2 bg-base-100 border border-base-300 rounded-box w-80 shadow-2xl z-50">
-                <div className="p-3 border-b border-base-300 bg-primary/10 flex items-center justify-between rounded-t-box">
-                  <span className="font-semibold text-primary">Notifications</span>
-                  <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setNotifOpen(false)}>
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="max-h-64 overflow-auto divide-y divide-base-200">
-                  {recentNotifications.length === 0 ? (
-                    notifications.length === 0 ? (
-                      <div className="p-4 text-center text-base-content/60">No new notifications</div>
+          <div>
+            <h1 className="text-2xl font-bold leading-tight">Student Dashboard</h1>
+            <p className="text-base-content/70">Welcome, {user?.displayName ?? user?.email?.split('@')[0] ?? 'Student'}! Today is {formatDate(new Date())}</p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            {/* Notification dropdown */}
+            <div className="relative shrink-0">
+            <button className="btn btn-ghost btn-circle" onClick={toggleNotif}>
+              <div className="indicator">
+                <Bell className="w-5 h-5" />
+                {recentNotifications.length > 0 && (
+                  <span className="indicator-item badge badge-error badge-xs"></span>
+                )}
+              </div>
+            </button>
+            {notifOpen && (
+              <>
+                {/* Backdrop to close dropdown when clicking outside */}
+                <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)}></div>
+                <div className="absolute right-0 mt-2 bg-base-100 border border-base-300 rounded-box w-80 shadow-2xl z-50">
+                  <div className="p-3 border-b border-base-300 bg-primary/10 flex items-center justify-between rounded-t-box">
+                    <span className="font-semibold text-primary">Notifications</span>
+                    <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setNotifOpen(false)}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-auto divide-y divide-base-200">
+                    {recentNotifications.length === 0 ? (
+                      notifications.length === 0 ? (
+                        <div className="p-4 text-center text-base-content/60">No new notifications</div>
+                      ) : (
+                        notifications.slice(0, 4).map(n => (
+                          <div
+                            key={n.id}
+                            className="p-3 hover:bg-primary/5 cursor-pointer transition-colors"
+                            onClick={() => { try { localStorage.setItem('lastRequestId', n.id) } catch {} setNotifOpen(false); nav('/tracking') }}
+                          >
+                            <div className="font-medium text-sm text-base-content">{n.purpose || 'Request update'}</div>
+                            <div className="text-xs text-base-content/70 mt-1">{n.status}</div>
+                          </div>
+                        ))
+                      )
                     ) : (
-                      notifications.slice(0, 4).map(n => (
+                      recentNotifications.slice(0, 4).map(n => (
                         <div
                           key={n.id}
-                          className="p-3 hover:bg-primary/5 cursor-pointer transition-colors"
+                          className="p-3 hover:bg-primary/5 cursor-pointer transition-colors bg-warning/5"
                           onClick={() => { try { localStorage.setItem('lastRequestId', n.id) } catch {} setNotifOpen(false); nav('/tracking') }}
                         >
-                          <div className="font-medium text-sm text-base-content">{n.purpose || 'Request update'}</div>
-                          <div className="text-xs text-base-content/70 mt-1">{n.status}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="badge badge-warning badge-xs">New</span>
+                            <span className="font-medium text-sm text-base-content">{n.purpose || 'Request update'}</span>
+                          </div>
+                          <div className="text-xs text-base-content/70 mt-1">{n.oldStatus} → {n.status}{n.actionAt ? ` · ${n.actionAt}` : ''}</div>
+                          {n.adminRemarks && (
+                            <div className="text-xs mt-1 text-base-content/60 italic">Remarks: {n.adminRemarks}</div>
+                          )}
                         </div>
                       ))
-                    )
-                  ) : (
-                    recentNotifications.slice(0, 4).map(n => (
-                      <div
-                        key={n.id}
-                        className="p-3 hover:bg-primary/5 cursor-pointer transition-colors bg-warning/5"
-                        onClick={() => { try { localStorage.setItem('lastRequestId', n.id) } catch {} setNotifOpen(false); nav('/tracking') }}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="badge badge-warning badge-xs">New</span>
-                          <span className="font-medium text-sm text-base-content">{n.purpose || 'Request update'}</span>
-                        </div>
-                        <div className="text-xs text-base-content/70 mt-1">{n.oldStatus} → {n.status}{n.actionAt ? ` · ${n.actionAt}` : ''}</div>
-                        {n.adminRemarks && (
-                          <div className="text-xs mt-1 text-base-content/60 italic">Remarks: {n.adminRemarks}</div>
-                        )}
-                      </div>
-                    ))
-                  )}
+                    )}
+                  </div>
+                  <div className="p-2 border-t border-base-300 bg-base-200/50 rounded-b-box">
+                    <button className="btn btn-primary btn-sm btn-block" onClick={() => { setNotifOpen(false); setNotifAllOpen(true); }}>
+                      View all notifications
+                    </button>
+                  </div>
                 </div>
-                <div className="p-2 border-t border-base-300 bg-base-200/50 rounded-b-box">
-                  <button className="btn btn-primary btn-sm btn-block" onClick={() => { setNotifOpen(false); setNotifAllOpen(true); }}>
-                    View all notifications
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+              </>
+            )}
+            </div>
+            <button className="btn btn-primary btn-sm min-h-11" onClick={() => nav("/requestpage")}>
+              + Request Equipment
+            </button>
           </div>
-        </div>
-        <p className="text-base-content/70">Welcome, {user?.displayName ?? user?.email?.split('@')[0] ?? 'Student'}! Today is {formatDate(new Date())}</p>
-        <div className="flex justify-end">
-          <button className="btn btn-primary btn-sm min-h-11" onClick={() => nav("/requestpage")}>
-            + Request Equipment
-          </button>
         </div>
       </div>
 
