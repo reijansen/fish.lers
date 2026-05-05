@@ -12,6 +12,7 @@
  */
 
 import { ChatRepository } from "../repositories/chat.repo.js";
+import { UserRepository } from "../repositories/users.repo.js";
 import {
   Conversation,
   ConversationType,
@@ -442,13 +443,18 @@ export class ChatDataService {
     const conversationID = this.generateEscalationConversationID(adminUID);
     const now = new Date().toISOString();
 
+    // Include super admins as participants so escalations show up in their inbox after reload.
+    // (Privacy: escalations are intended for the super admin group.)
+    const superAdmins = await UserRepository.listSuperAdmins(50);
+    const participantUIDs = Array.from(new Set([adminUID, ...superAdmins.map((u) => u.uid)]));
+
     return ChatRepository.upsertConversation(conversationID, {
       conversationID,
       type: "escalation",
       status: "active",
       adminUID,
       escalationReason: reason.trim(),
-      participants: [adminUID],
+      participants: participantUIDs,
       messageCount: 0,
       lastMessageAt: now,
       createdAt: now,

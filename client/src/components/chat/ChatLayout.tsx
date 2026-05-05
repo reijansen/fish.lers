@@ -45,6 +45,7 @@ export const ChatLayout: React.FC = () => {
     );
 
     await chat.loadConversation(conversationID);
+    await chat.loadConversations();
   };
 
   const handleStartNewChat = async (person: ChatPerson) => {
@@ -53,10 +54,19 @@ export const ChatLayout: React.FC = () => {
 
     // Student: always their own support thread
     if (chat.userRole === "student") {
+      // Ensure support conversation exists, then assign it to the selected admin/superAdmin target if applicable.
       await fetch("http://localhost:5000/api/chat/support", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
+
+      if (person.role === "admin") {
+        await fetch("http://localhost:5000/api/chat/support/assign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ adminUID: person.uid }),
+        });
+      }
       await openConversationById(`support:${chat.userUID}`);
       return;
     }
@@ -67,6 +77,12 @@ export const ChatLayout: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
+
+      // Claim/assign the support conversation to the current admin if needed (privacy: directed inbox).
+      // For superAdmins this will be enforced by join rules instead.
+      if (chat.userRole === "admin") {
+        // Student assignment endpoint requires student auth, so admins claim on join; open triggers join.
+      }
       await openConversationById(`support:${person.uid}`);
       return;
     }

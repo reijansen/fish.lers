@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { ChatDataService } from "../services/chat-data.service.js";
 import { canUserAccessConversation } from "../realtime/access-control.js";
 import type { SocketUser } from "../realtime/socket-auth.js";
+import { UserRepository } from "../repositories/users.repo.js";
+import { ChatRepository } from "../repositories/chat.repo.js";
 
 /**
  * POST /api/chat/support
@@ -48,6 +50,47 @@ export async function ensureStudentSupportConversation(req: Request, res: Respon
   } catch (error: any) {
     console.error("[API] ensureStudentSupportConversation:", error?.message || error);
     res.status(500).json({ error: "Failed to ensure support conversation" });
+  }
+}
+
+/**
+ * POST /api/chat/support/assign
+ * Assign the current student's support conversation to a specific admin.
+ * Body: { adminUID: string }
+ */
+export async function assignMySupportConversation(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    const adminUID = typeof (req.body as any)?.adminUID === "string" ? (req.body as any).adminUID : "";
+    if (!adminUID) {
+      res.status(400).json({ error: "adminUID is required" });
+      return;
+    }
+
+    const adminUser = await UserRepository.getById(adminUID);
+    if (!adminUser || adminUser.role !== "admin") {
+      res.status(400).json({ error: "Target user is not an admin" });
+      return;
+    }
+
+    const conversation = await ChatDataService.getOrCreateSupportConversation(req.user.uid);
+    const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
+    const nextParticipants = Array.from(new Set([...participants, req.user.uid, adminUID]));
+
+    await ChatRepository.updateConversation(conversation.conversationID, {
+      participants: nextParticipants,
+      adminUID,
+    });
+
+    const updated = await ChatRepository.getConversation(conversation.conversationID);
+    res.status(200).json({ conversation: updated || conversation });
+  } catch (error: any) {
+    console.error("[API] assignMySupportConversation:", error?.message || error);
+    res.status(500).json({ error: "Failed to assign support conversation" });
   }
 }
 

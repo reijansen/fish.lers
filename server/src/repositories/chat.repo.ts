@@ -218,15 +218,20 @@ export class ChatRepository {
     const query = conversationsRef
       .where("participants", "array-contains", studentUID)
       .where("type", "==", "support")
-      .orderBy("lastMessageAt", "desc")
       .limit(50);
 
     const querySnap = await query.get();
 
-    return querySnap.docs.map((docSnap) => ({
+    const conversations = querySnap.docs.map((docSnap) => ({
       conversationID: docSnap.id,
       ...(docSnap.data() || {}),
     } as Conversation));
+
+    conversations.sort(
+      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+    );
+
+    return conversations;
   }
 
   /**
@@ -236,18 +241,60 @@ export class ChatRepository {
     const db = getFirestore();
     const conversationsRef = db.collection(CONVERSATIONS_COLLECTION);
 
-    // Privacy: admins only see conversations they are explicitly a participant of.
-    const query = conversationsRef
+    // Privacy: admins see conversations they participate in.
+    // Backward-compat: also include support/escalation conversations where adminUID==adminUID,
+    // and backfill participants membership to avoid disappearing after reload.
+
+    const participantsQuery = conversationsRef
       .where("participants", "array-contains", adminUID)
-      .orderBy("lastMessageAt", "desc")
       .limit(50);
 
-    const querySnap = await query.get();
+    const supportClaimQuery = conversationsRef
+      .where("type", "==", "support")
+      .where("adminUID", "==", adminUID)
+      .limit(50);
 
-    return querySnap.docs.map((docSnap) => ({
-      conversationID: docSnap.id,
-      ...(docSnap.data() || {}),
-    } as Conversation));
+    const escalationOwnerQuery = conversationsRef
+      .where("type", "==", "escalation")
+      .where("adminUID", "==", adminUID)
+      .limit(50);
+
+    const [pSnap, sSnap, eSnap] = await Promise.all([
+      participantsQuery.get(),
+      supportClaimQuery.get(),
+      escalationOwnerQuery.get(),
+    ]);
+
+    const byId = new Map<string, Conversation>();
+    for (const snap of [pSnap, sSnap, eSnap]) {
+      snap.forEach((docSnap) => {
+        byId.set(docSnap.id, {
+          conversationID: docSnap.id,
+          ...(docSnap.data() || {}),
+        } as Conversation);
+      });
+    }
+
+    const conversations = Array.from(byId.values());
+
+    // Backfill: ensure admin is in participants for all returned conversations.
+    await Promise.all(
+      conversations.map(async (conv) => {
+        const participants = Array.isArray(conv.participants) ? conv.participants : [];
+        if (!participants.includes(adminUID)) {
+          await this.updateConversation(conv.conversationID, {
+            participants: [...participants, adminUID],
+          });
+          conv.participants = [...participants, adminUID];
+        }
+      })
+    );
+
+    conversations.sort(
+      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+    );
+
+    return conversations.slice(0, 50);
   }
 
   /**
@@ -257,19 +304,38 @@ export class ChatRepository {
     const db = getFirestore();
     const conversationsRef = db.collection(CONVERSATIONS_COLLECTION);
 
-    // Privacy: superAdmins only see conversations they are participants of.
-    // They can still join escalations by conversation ID and will be added as participants on join.
-    const query = conversationsRef
-      .where("participants", "array-contains", superAdminUID)
-      .orderBy("lastMessageAt", "desc")
+    // SuperAdmins should see escalation conversations (their inbox).
+    // Backward-compat: older escalation conversations may not have participants populated for superAdmins.
+    // We list escalations and backfill participants membership so they remain visible after reload.
+
+    const escalationsQuery = conversationsRef
+      .where("type", "==", "escalation")
       .limit(50);
 
-    const querySnap = await query.get();
+    const querySnap = await escalationsQuery.get();
 
-    return querySnap.docs.map((docSnap) => ({
+    const conversations = querySnap.docs.map((docSnap) => ({
       conversationID: docSnap.id,
       ...(docSnap.data() || {}),
     } as Conversation));
+
+    await Promise.all(
+      conversations.map(async (conv) => {
+        const participants = Array.isArray(conv.participants) ? conv.participants : [];
+        if (!participants.includes(superAdminUID)) {
+          await this.updateConversation(conv.conversationID, {
+            participants: [...participants, superAdminUID],
+          });
+          conv.participants = [...participants, superAdminUID];
+        }
+      })
+    );
+
+    conversations.sort(
+      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+    );
+
+    return conversations;
   }
 
   /**
@@ -417,12 +483,12 @@ export class ChatRepository {
       .collection(MESSAGES_SUBCOLLECTION);
 
     const query = messagesRef
-      .where("deletedAt", "==", null)
       .where("createdAt", ">", afterTimestamp)
       .orderBy("createdAt", "asc")
-      .limit(maxCount + 1);
+      .limit(maxCount + 25);
 
     const snap = await query.get();
-    return Math.min(snap.size, maxCount);
+    const count = snap.docs.filter((d) => !(d.data() as any)?.deletedAt).length;
+    return Math.min(count, maxCount);
   }
 }

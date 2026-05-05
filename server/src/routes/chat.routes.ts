@@ -14,6 +14,7 @@ import { listChatPeople } from "../controllers/chat-people.controller.js";
 import {
   ensureMySupportConversation,
   ensureStudentSupportConversation,
+  assignMySupportConversation,
   createEscalationConversation,
   createEscalationConversationForAdmin,
 } from "../controllers/chat-conversations.controller.js";
@@ -43,6 +44,12 @@ router.get("/people", requireAuth, listChatPeople);
  * Ensure current student's support conversation exists.
  */
 router.post("/support", requireAuth, ensureMySupportConversation);
+
+/**
+ * POST /api/chat/support/assign
+ * Assign current student's support conversation to a specific admin.
+ */
+router.post("/support/assign", requireAuth, assignMySupportConversation);
 
 /**
  * POST /api/chat/support/:studentUID
