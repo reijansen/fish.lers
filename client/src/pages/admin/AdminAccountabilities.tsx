@@ -266,20 +266,38 @@ const AdminAccountabilities: React.FC = () => {
     pdf.setFontSize(10);
     pdf.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
 
-    const tableData = rows.map(r => [
-      r.due || "No date",
-      r.studentNumber || "N/A",
-      r.details || "No details",
-      r.status || "pending"
-    ]);
+    const dataToExport = filtered;
+
+    const tableData = dataToExport.map(r => {
+      const studentName =
+        studentNameByNumber[r.studentNumber] ||
+        r.studentName ||
+        r.createdByName ||
+        (r.createdBy ? userInfoById[r.createdBy]?.displayName : undefined) ||
+        r.createdBy ||
+        "Unknown";
+
+      const studentNumber =
+        r.studentNumber ||
+        (r.createdBy ? userInfoById[r.createdBy]?.studentNumber : undefined) ||
+        "No student number";
+
+      return [
+        r.due || "No date",
+        studentName,
+        studentNumber,
+        formatDetails(r.details) || "No details",
+        r.status || "pending"
+      ];
+    });
 
     autoTable(pdf, {
       startY: 28,
-      head: [["Due Date", "Student No.", "Details", "Status"]],
+      head: [["Date Due", "Name", "Student Number", "Details", "Status"]],
       body: tableData,
     });
 
-    pdf.save("admin-accountabilities.pdf");
+    pdf.save(`admin-accountabilities-${tab}-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   return (
