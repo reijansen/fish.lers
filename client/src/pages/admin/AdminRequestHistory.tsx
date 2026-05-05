@@ -7,6 +7,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
+import { useLocation } from "react-router-dom";
 import {
   Calendar,
   Clock,
@@ -133,18 +134,40 @@ const toMillis = (value: any) => {
 };
 
 const AdminRequestHistory: React.FC = () => {
+  const location = useLocation();
   const [requests, setRequests] = React.useState<AdminRequestRecord[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
   const [statusFilter, setStatusFilter] = React.useState<"all" | string>("all");
   const [yearFilter, setYearFilter] = React.useState<"all" | string>("all");
-  const [quickFilter, setQuickFilter] = React.useState<"all" | "overridden" | "super-admin-actions">("all");
+  const [quickFilter, setQuickFilter] = React.useState<"all" | "overridden" | "super-admin-actions" | "aged48">("all");
   const [sortOrder, setSortOrder] = React.useState<"desc" | "asc">("desc");
   const [selectedRequest, setSelectedRequest] = React.useState<AdminRequestRecord | null>(null);
   const [nameMap, setNameMap] = React.useState<Record<string, string>>({});
   const [superAdminMap, setSuperAdminMap] = React.useState<Record<string, boolean>>({});
   const { equipmentList, isLoading: isEquipmentLoading } = logicEquipment();
+  const requestIdFromQuery = React.useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("requestId") || "";
+  }, [location.search]);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const status = params.get("status");
+    const term = params.get("search");
+    const year = params.get("year");
+    const quick = params.get("quick");
+    const sort = params.get("sort");
+
+    if (status) setStatusFilter(status);
+    if (term) setSearch(term);
+    if (year) setYearFilter(year);
+    if (quick === "overridden" || quick === "super-admin-actions" || quick === "aged48") {
+      setQuickFilter(quick);
+    }
+    if (sort === "asc" || sort === "desc") setSortOrder(sort);
+  }, [location.search]);
 
   React.useEffect(() => {
     const q = query(collection(db, "requests"), orderBy("createdAtClient", "desc"));
@@ -264,7 +287,7 @@ const AdminRequestHistory: React.FC = () => {
     if (req.createdByName) return req.createdByName;
     if (req.createdBy && nameMap[req.createdBy]) return nameMap[req.createdBy];
     if (req.createdBy) return req.createdBy;
-    return "Unknown requester";
+    return "Unlinked requester";
   };
 
   const getActorName = (uid?: string) => {
@@ -323,6 +346,13 @@ const AdminRequestHistory: React.FC = () => {
     const hasOverride = (req: AdminRequestRecord) =>
       !!req.overriddenAt || !!req.overriddenBy || !!req.overrideReason;
     const isSuperAdminActor = (uid?: string) => !!uid && !!superAdminMap[uid];
+    const isAged48 = (req: AdminRequestRecord) => {
+      const statusKey = (req.status || "").toLowerCase();
+      if (statusKey !== "pending" && statusKey !== "" && statusKey !== "ongoing") return false;
+      const createdMs = toMillis(req.createdAt || req.createdAtClient);
+      if (!createdMs) return false;
+      return Date.now() - createdMs >= 48 * 3600000;
+    };
     const list = requests.filter((req) => {
       const statusKey = (req.status || "").toLowerCase();
       const statusMatch = statusFilter === "all" || statusKey === statusFilter;
@@ -340,6 +370,8 @@ const AdminRequestHistory: React.FC = () => {
           ? true
           : quickFilter === "overridden"
           ? hasOverride(req)
+          : quickFilter === "aged48"
+          ? isAged48(req)
           : hasOverride(req) ||
             isSuperAdminActor(req.approvedBy) ||
             isSuperAdminActor(req.rejectedBy) ||
@@ -358,6 +390,12 @@ const AdminRequestHistory: React.FC = () => {
       return sortOrder === "asc" ? diff : -diff;
     });
   }, [requests, debouncedSearch, statusFilter, yearFilter, sortOrder, nameMap, quickFilter, superAdminMap]);
+
+  React.useEffect(() => {
+    if (!requestIdFromQuery) return;
+    const match = filtered.find((r) => r.id === requestIdFromQuery);
+    if (match) setSelectedRequest(match);
+  }, [requestIdFromQuery, filtered]);
 
   const grouped = React.useMemo(() => {
     const buckets: Record<string, AdminRequestRecord[]> = {};
@@ -519,11 +557,12 @@ const AdminRequestHistory: React.FC = () => {
               <select
                 className="select select-bordered"
                 value={quickFilter}
-                onChange={(e) => setQuickFilter(e.target.value as "all" | "overridden" | "super-admin-actions")}
+                onChange={(e) => setQuickFilter(e.target.value as "all" | "overridden" | "super-admin-actions" | "aged48")}
               >
                 <option value="all">Show all requests</option>
                 <option value="overridden">Only overridden requests</option>
                 <option value="super-admin-actions">Only super-admin actions</option>
+                <option value="aged48">Pending over 48 hours</option>
               </select>
             </label>
           </div>
@@ -591,7 +630,7 @@ const AdminRequestHistory: React.FC = () => {
                             req.items?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
                           const submittedOn = req.createdAt
                             ? req.createdAt.toLocaleString()
-                            : req.createdAtClient || "Unknown";
+                            : req.createdAtClient || "—";
                           return (
                             <tr
                               key={req.id}
@@ -676,7 +715,7 @@ const AdminRequestHistory: React.FC = () => {
                   {getRequester(selectedRequest)} •{" "}
                   {selectedRequest.createdAt
                     ? selectedRequest.createdAt.toLocaleString()
-                    : selectedRequest.createdAtClient || "Unknown timestamp"}
+                    : selectedRequest.createdAtClient || "—"}
                 </p>
                 <p className="text-xs text-base-content/60 font-mono mt-1">
                   ID: {selectedRequest.id}

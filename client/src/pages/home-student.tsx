@@ -127,18 +127,6 @@ export default function HomeStudent() {
       return true
     })
 
-  // When showing "All", order groups as: approved -> ongoing/pending -> declined/rejected -> returned -> cancelled
-  if (tab === 'all') {
-    const priority = (s: string) => {
-      const st = (s || '').toString().toLowerCase();
-      if (st === 'approved') return 0;
-      if (st === 'ongoing' || st === 'pending' || st === '') return 1;
-      if (st === 'declined' || st === 'rejected') return 2;
-      if (st === 'returned') return 3;
-      if (st === 'cancelled') return 4;
-      return 5;
-    }
-
   const [busyId, setBusyId] = React.useState<string | null>(null)
   const [showModalRequest, setShowModalRequest] = React.useState<any | null>(null)
   const [showAccountabilityModal, setShowAccountabilityModal] = React.useState<any | null>(null)
@@ -792,5 +780,4 @@ export default function HomeStudent() {
     </div>
     </>
   );
-  }
 }

@@ -230,7 +230,7 @@ const AdminAccountabilities: React.FC = () => {
   const persistItemResolutions = React.useCallback(async (stateMap: Record<string, boolean>) => {
     if (!showModal || !showModal.id) return
     const payload = buildResolutionPayload(stateMap)
-    setShowModal(prev => (prev && prev.id === showModal.id ? { ...prev, itemResolutions: payload } : prev))
+    setShowModal((prev: any | null) => (prev && prev.id === showModal.id ? { ...prev, itemResolutions: payload } : prev))
     try {
       await updateDoc(doc(db, 'accountabilities', showModal.id), { itemResolutions: payload })
     } catch (e) {

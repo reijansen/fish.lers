@@ -4,6 +4,7 @@ export interface Equipment {
     name: string;
     totalInventory: number;
     categoryID?: string;
+    category?: string;
     isDisposable: boolean;
     isDeleted?: boolean;
     deletedAt?: string;

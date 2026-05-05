@@ -7,6 +7,7 @@ import { useTelemetry } from '../../hooks/useTelemetry'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import MobileStatsPager from '../../components/MobileStatsPager'
 import { formatDate as formatDateUtil } from '../../utils/formatters'
+import { User, Mail, Calendar, Shield, AlertCircle } from 'lucide-react'
 
 interface UserData {
   uid: string
@@ -16,6 +17,8 @@ interface UserData {
   isSuperAdmin?: boolean
   createdAt?: any
   requestedAdmin?: boolean
+  studentNumber?: string
+  staffId?: string
 }
 
 export default function AdminUsers() {
@@ -27,6 +30,7 @@ export default function AdminUsers() {
   const debouncedSearchTerm = useDebouncedValue(searchTerm, 300)
   const [alertMessage, setAlertMessage] = React.useState<string | null>(null)
   const [alertType, setAlertType] = React.useState<'success' | 'error' | 'info'>('info')
+  const [selectedUser, setSelectedUser] = React.useState<UserData | null>(null)
   const [confirmOpen, setConfirmOpen] = React.useState(false)
   const [confirmTitle, setConfirmTitle] = React.useState('')
   const [confirmMessage, setConfirmMessage] = React.useState('')
@@ -57,6 +61,8 @@ export default function AdminUsers() {
               isSuperAdmin: !!data.isSuperAdmin,
               createdAt: data.createdAt,
               requestedAdmin: !!data.requestedAdmin,
+              studentNumber: data.studentNumber || '',
+              staffId: data.staffId || '',
             })
           }
         })
@@ -315,7 +321,7 @@ export default function AdminUsers() {
                     </tr>
                   ) : (
                     filteredUsers.map((user) => (
-                      <tr key={user.uid}>
+                      <tr key={user.uid} className="hover:bg-primary/10 cursor-pointer transition-colors" onClick={() => setSelectedUser(user)}>
                         <td>
                           <div className="flex items-center gap-3">
                             <div className="avatar">
@@ -354,7 +360,7 @@ export default function AdminUsers() {
                           ) : null}
                         </td>
                         <td className="text-sm">{formatDate(user.createdAt) || '—'}</td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div className="flex flex-wrap gap-2">
                             {user.requestedAdmin ? (
                               <button
@@ -408,6 +414,193 @@ export default function AdminUsers() {
           </ul>
         </div>
       </div>
+
+      {/* User Profile Modal */}
+      {selectedUser && (
+        <dialog className="modal modal-open">
+          <div className="modal-box w-full max-w-2xl">
+            <button
+              className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+              onClick={() => setSelectedUser(null)}
+            >
+              ✕
+            </button>
+            <div className="space-y-5">
+              {/* Header with Avatar and Name */}
+              <div className="flex items-center gap-4">
+                <div className="avatar">
+                  <div className="w-16 rounded-xl">
+                    <img
+                      src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        selectedUser.displayName || selectedUser.email || 'User'
+                      )}&background=${selectedUser.role === 'admin' ? 'c7d2fe' : 'a5b4fc'}&color=${
+                        selectedUser.role === 'admin' ? '3730a3' : '312e81'
+                      }&bold=true&size=128`}
+                      alt={selectedUser.displayName || selectedUser.email || 'User'}
+                    />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold">{selectedUser.displayName || '(No name)'}</h3>
+                  <p className="text-base-content/60 text-sm">{selectedUser.email || '—'}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span
+                      className={`badge ${
+                        selectedUser.role === 'admin'
+                          ? selectedUser.isSuperAdmin
+                            ? 'badge-accent'
+                            : 'badge-secondary'
+                          : 'badge-primary'
+                      }`}
+                    >
+                      {formatRoleLabel(selectedUser.role || 'student', !!selectedUser.isSuperAdmin)}
+                    </span>
+                    {selectedUser.requestedAdmin && selectedUser.role !== 'admin' && (
+                      <span className="badge badge-warning">Requested Admin</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="divider my-2" />
+
+              {/* Account Information */}
+              <div className="space-y-3">
+                <h4 className="text-xs uppercase tracking-wide text-base-content/60 font-semibold">Account Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Email */}
+                  <div className="bg-base-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-base-content/60 uppercase tracking-wide mb-1">
+                      <Mail className="w-3 h-3" />
+                      Email
+                    </div>
+                    <p className="text-sm break-all">{selectedUser.email || '—'}</p>
+                  </div>
+
+                  {/* Role Status */}
+                  <div className="bg-base-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-base-content/60 uppercase tracking-wide mb-1">
+                      <Shield className="w-3 h-3" />
+                      Role Status
+                    </div>
+                    <p className="text-sm font-medium">
+                      {selectedUser.role === 'admin'
+                        ? selectedUser.isSuperAdmin
+                          ? 'Super Administrator'
+                          : 'Administrator'
+                        : 'Student'}
+                    </p>
+                  </div>
+
+                  {/* Student/Staff ID */}
+                  {(selectedUser.studentNumber || selectedUser.staffId) && (
+                    <div className="bg-base-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-xs text-base-content/60 uppercase tracking-wide mb-1">
+                        <User className="w-3 h-3" />
+                        {selectedUser.studentNumber ? 'Student Number' : 'Staff ID'}
+                      </div>
+                      <p className="font-mono text-sm">{selectedUser.studentNumber || selectedUser.staffId}</p>
+                    </div>
+                  )}
+
+                  {/* Joined Date */}
+                  <div className="bg-base-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-xs text-base-content/60 uppercase tracking-wide mb-1">
+                      <Calendar className="w-3 h-3" />
+                      Joined
+                    </div>
+                    <p className="text-sm font-medium">
+                      {selectedUser.createdAt ? formatDate(selectedUser.createdAt) : '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* System User ID */}
+              <div className="bg-base-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-xs text-base-content/60 uppercase tracking-wide mb-2">
+                  <User className="w-3 h-3" />
+                  System User ID
+                </div>
+                <p className="font-mono text-xs break-all">{selectedUser.uid}</p>
+              </div>
+
+              {/* Status Alerts */}
+              {(selectedUser.requestedAdmin || selectedUser.isSuperAdmin) && (
+                <>
+                  <div className="divider my-2" />
+                  <div className="space-y-2">
+                    {selectedUser.requestedAdmin && selectedUser.role !== 'admin' && (
+                      <div className="alert alert-warning">
+                        <AlertCircle className="w-5 h-5" />
+                        <span>This user has requested admin access.</span>
+                      </div>
+                    )}
+                    {selectedUser.isSuperAdmin && (
+                      <div className="alert alert-info">
+                        <Shield className="w-5 h-5" />
+                        <span>This user has super administrator privileges.</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Actions */}
+              <div className="divider my-2" />
+              <div className="modal-action gap-2">
+                {selectedUser.requestedAdmin ? (
+                  <button
+                    className="btn btn-primary flex-1"
+                    onClick={() => {
+                      grantAdmin(selectedUser)
+                      setSelectedUser(null)
+                    }}
+                    disabled={updating === selectedUser.uid}
+                  >
+                    {updating === selectedUser.uid ? 'Updating...' : 'Grant Admin Access'}
+                  </button>
+                ) : null}
+                {selectedUser.role === 'admin' && !selectedUser.requestedAdmin ? (
+                  <>
+                    {!selectedUser.isSuperAdmin && (
+                      <button
+                        className="btn btn-accent flex-1"
+                        onClick={() => {
+                          makeSuperAdmin(selectedUser)
+                          setSelectedUser(null)
+                        }}
+                        disabled={updating === selectedUser.uid}
+                      >
+                        {updating === selectedUser.uid ? 'Updating...' : 'Make Super Admin'}
+                      </button>
+                    )}
+                    <button
+                      className="btn btn-error flex-1"
+                      onClick={() => {
+                        revokeAdmin(selectedUser)
+                        setSelectedUser(null)
+                      }}
+                      disabled={updating === selectedUser.uid}
+                    >
+                      {updating === selectedUser.uid ? 'Updating...' : 'Revoke Admin Access'}
+                    </button>
+                  </>
+                ) : null}
+                <button
+                  className="btn flex-1"
+                  onClick={() => setSelectedUser(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={() => setSelectedUser(null)}>close</button>
+          </form>
+        </dialog>
+      )}
 
       {confirmOpen && (
         <div
