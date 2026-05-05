@@ -40,7 +40,7 @@ export const ChatLayout: React.FC = () => {
 
   if (chat.isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-base-100">
+      <div className="h-full min-h-[16rem] flex items-center justify-center bg-base-100 rounded-box border border-base-300">
         <div className="text-center">
           <span className="loading loading-spinner loading-lg"></span>
           <p className="mt-4 text-base-content/60">Connecting...</p>
@@ -51,7 +51,7 @@ export const ChatLayout: React.FC = () => {
 
   if (!chat.isConnected) {
     return (
-      <div className="h-screen flex items-center justify-center bg-base-100">
+      <div className="h-full min-h-[16rem] flex items-center justify-center bg-base-100 rounded-box border border-base-300">
         <div className="alert alert-error max-w-md">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -76,7 +76,7 @@ export const ChatLayout: React.FC = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-base-100">
+    <div className="h-full min-h-0 flex flex-col bg-base-100 rounded-box border border-base-300 overflow-hidden">
       {/* Toast notification */}
       {chat.toastNotification && (
         <ChatToast notification={chat.toastNotification} onDismiss={chat.dismissToast} />
@@ -132,7 +132,7 @@ export const ChatLayout: React.FC = () => {
             {/* Mobile drawer button */}
             <label
               htmlFor="my-drawer"
-              className="btn btn-primary btn-sm md:hidden fixed bottom-20 left-4"
+              className="btn btn-primary btn-sm md:hidden sticky bottom-4 self-start m-4"
             >
               Conversations
             </label>

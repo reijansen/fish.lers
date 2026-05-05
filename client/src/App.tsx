@@ -4,7 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
-import ChatPage from "./pages/ChatPage";
+import ChatRoute from "./pages/ChatRoute";
 import Dashboard from "./pages/equipment/Dashboard";
 import RequestPage from "./pages/requestform/RequestPage";
 import TrackingPage from "./pages/tracking/TrackingPage";
@@ -43,7 +43,7 @@ const App: React.FC = () => {
         path="/chat"
         element={
           <ProtectedRoute>
-            <ChatPage />
+            <ChatRoute />
           </ProtectedRoute>
         }
       />
