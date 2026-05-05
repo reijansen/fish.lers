@@ -11,6 +11,8 @@ import { Bell, X, Eye, XCircle, RotateCcw, Copy, MapPin, Clock } from 'lucide-re
 import LoadingOverlay from '../components/LoadingOverlay';
 import MobileStatsPager from '../components/MobileStatsPager';
 import { useRequests } from '../hooks/useRequests'
+import AnnouncementBanner from '../components/AnnouncementBanner';
+import { useAnnouncements } from '../hooks/useAnnouncements';
 
 function formatDate(d: Date) {
   return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -28,6 +30,7 @@ function formatDateTime(v: any) {
 
 export default function HomeStudent() {
   const { user } = useAuth();
+  const { announcements } = useAnnouncements();
   const { requests: trackingRequests } = useRequests(user?.uid)
   const [rows, setRows] = React.useState<any[]>([])
   const [copiedId, setCopiedId] = React.useState<string | null>(null)
@@ -371,6 +374,8 @@ export default function HomeStudent() {
             <button className="btn btn-sm" onClick={() => setAlertMessage(null)}>Close</button>
           </div>
         )}
+        {/* Announcement Banner */}
+        <AnnouncementBanner announcements={announcements} />
       {/* Header Section */}
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-3">

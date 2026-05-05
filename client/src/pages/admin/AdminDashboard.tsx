@@ -7,6 +7,9 @@ import LoadingOverlay from "../../components/LoadingOverlay";
 import MobileStatsPager from "../../components/MobileStatsPager";
 import { overrideApproveRequest, overrideRejectRequest } from "../../api/requests.api";
 import { useAuth } from "../../hooks/useAuth";
+import AnnouncementBanner from "../../components/AnnouncementBanner";
+import { useAnnouncements } from "../../hooks/useAnnouncements";
+import { useNavigate } from "react-router-dom";
 
 type ItemCondition = "functional" | "damaged" | "missing" | "consumed";
 
@@ -67,6 +70,8 @@ const AdminDashboard: React.FC = () => {
   const [viewRequest, setViewRequest] = useState<Request | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const { isSuperAdmin, user } = useAuth();
+  const { announcements } = useAnnouncements();
+  const navigate = useNavigate();
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideId, setOverrideId] = useState<string | null>(null);
   const [overrideAction, setOverrideAction] = useState<"approve" | "reject" | null>(null);
@@ -889,11 +894,22 @@ const AdminDashboard: React.FC = () => {
             <button className="btn btn-sm" onClick={() => setAlertMessage(null)}>Close</button>
           </div>
         )}
+        {/* Announcement Banner */}
+        <AnnouncementBanner announcements={announcements} />
       {/* Header Section */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
           <p className="text-base-content/70">Manage and review equipment requests.</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => navigate('/admin/announcements/create')}
+          >
+            <Bell className="w-4 h-4" />
+            Create Announcement
+          </button>
         </div>
         <div className="relative">
           <button className="btn btn-ghost btn-circle" onClick={toggleNotif}>
