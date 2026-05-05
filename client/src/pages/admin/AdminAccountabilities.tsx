@@ -4,6 +4,10 @@ import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, doc, g
 import { FileWarning, Clock, CheckCircle, AlertCircle, Plus } from 'lucide-react'
 import MobileStatsPager from '../../components/MobileStatsPager'
 
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
+
 type IssueCondition = 'damaged' | 'missing' | 'detail'
 
 interface ModalIssueEntry {
@@ -253,6 +257,31 @@ const AdminAccountabilities: React.FC = () => {
     })
   }, [modalEditable, persistItemResolutions])
 
+  const exportTablePDF = () => {
+    const pdf = new jsPDF();
+
+    pdf.setFontSize(16);
+    pdf.text("Admin Accountabilities Report", 14, 15);
+
+    pdf.setFontSize(10);
+    pdf.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
+
+    const tableData = rows.map(r => [
+      r.due || "No date",
+      r.studentNumber || "N/A",
+      r.details || "No details",
+      r.status || "pending"
+    ]);
+
+    autoTable(pdf, {
+      startY: 28,
+      head: [["Due Date", "Student No.", "Details", "Status"]],
+      body: tableData,
+    });
+
+    pdf.save("admin-accountabilities.pdf");
+  };
+
   return (
     <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
@@ -268,6 +297,11 @@ const AdminAccountabilities: React.FC = () => {
           </button>
         </div>
       </div>
+
+      
+      <button className="btn btn-primary mt-3" onClick={exportTablePDF}>
+        Export PDF
+      </button>
 
       {/* Stats */}
       <MobileStatsPager
