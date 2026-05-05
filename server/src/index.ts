@@ -28,7 +28,7 @@ async function main() {
 
     // Create and start Express app
     const app = createApp(config);
-    startServer(app, config);
+    await startServer(app, config);
   } catch (error) {
     console.error("❌ Failed to start server:", error);
     process.exit(1);

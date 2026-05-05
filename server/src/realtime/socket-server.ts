@@ -8,6 +8,7 @@
 import { Server as HTTPServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { AppConfig } from "../config/env.js";
+import { REALTIME_CONFIG } from "./config.js";
 
 /**
  * Create and configure Socket.io server.
@@ -55,6 +56,9 @@ export function createSocketIOServer(
       allowedHeaders: ["Content-Type", "Authorization"],
     },
     transports: ["websocket", "polling"],
+    pingInterval: REALTIME_CONFIG.socket.pingIntervalMs,
+    pingTimeout: REALTIME_CONFIG.socket.pingTimeoutMs,
+    maxHttpBufferSize: REALTIME_CONFIG.socket.maxHttpBufferSizeBytes,
   });
 
   return io;

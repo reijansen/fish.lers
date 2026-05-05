@@ -5,6 +5,7 @@
  */
 
 export { createSocketIOServer } from "./socket-server.js";
+export { maybeEnableRedisAdapter } from "./redis-adapter.js";
 export { setupSocketAuth, getSocketUser } from "./socket-auth.js";
 export type { SocketUser } from "./socket-auth.js";
 export { setupEventHandlers, ROOM_PREFIXES } from "./socket-events.js";

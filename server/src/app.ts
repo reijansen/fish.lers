@@ -10,9 +10,11 @@ import requestRoutes from "./routes/requests.routes.js";
 import chatRoutes from "./routes/chat.routes.js";
 import {
   createSocketIOServer,
+  maybeEnableRedisAdapter,
   setupSocketAuth,
   setupEventHandlers,
 } from "./realtime/index.js";
+import { REALTIME_CONFIG } from "./realtime/config.js";
 
 /**
  * Create and configure the Express app.
@@ -90,18 +92,31 @@ export function createApp(config: AppConfig): express.Application {
 /**
  * Start the server with HTTP and Socket.io support.
  */
-export function startServer(app: express.Application, config: AppConfig): void {
+export async function startServer(app: express.Application, config: AppConfig): Promise<void> {
   // Create HTTP server from Express app
   const httpServer = createServer(app);
 
   // Setup Socket.io on HTTP server
   const io = createSocketIOServer(httpServer, config);
+  const redisStatus = await maybeEnableRedisAdapter(io);
+  if (redisStatus.mode === "failed") {
+    console.warn(`[WebSocket] Redis adapter disabled: ${redisStatus.details}`);
+  }
   setupSocketAuth(io);
   setupEventHandlers(io);
 
   // Start listening
   httpServer.listen(config.port, () => {
     const configuredOrigins = [config.clientUrl, ...config.clientUrls].filter(Boolean);
+    console.log(
+      `Socket config: pingInterval=${REALTIME_CONFIG.socket.pingIntervalMs}ms pingTimeout=${REALTIME_CONFIG.socket.pingTimeoutMs}ms maxBuffer=${REALTIME_CONFIG.socket.maxHttpBufferSizeBytes}b`
+    );
+    console.log(
+      `Chat rates: msg=${REALTIME_CONFIG.message.rateMax}/${REALTIME_CONFIG.message.rateWindowMs}ms typing=${REALTIME_CONFIG.typing.rateMax}/${REALTIME_CONFIG.typing.rateWindowMs}ms read=${REALTIME_CONFIG.read.rateMax}/${REALTIME_CONFIG.read.rateWindowMs}ms`
+    );
+    console.log(
+      `Redis adapter: ${redisStatus.mode}${redisStatus.details ? ` (${redisStatus.details})` : ""}`
+    );
     console.log(`\n✓ Server running on http://localhost:${config.port}`);
     console.log(`✓ WebSocket server initialized`);
     console.log(`✓ CORS configured origins: ${configuredOrigins.join(", ") || "(none)"}\n`);
