@@ -899,7 +899,7 @@ const AdminDashboard: React.FC = () => {
       {/* Header Section */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+          <h1 className="text-2xl font-bold">{isSuperAdmin ? 'Superadmin Dashboard' : 'Admin Dashboard'}</h1>
           <p className="text-base-content/70">Manage and review equipment requests.</p>
         </div>
         <div className="flex flex-col items-end gap-2">
