@@ -2,6 +2,7 @@ import React from "react";
 import { useAuth } from "../hooks/useAuth";
 import DrawerLayout from "../components/DrawerLayout";
 import AdminDrawerLayout from "../components/AdminDrawerLayout";
+import PageWithFooter from "../components/PageWithFooter";
 import ChatPage from "./ChatPage";
 
 /**
@@ -14,17 +15,20 @@ const ChatRoute: React.FC = () => {
   if (isAdmin) {
     return (
       <AdminDrawerLayout>
-        <ChatPage />
+        <PageWithFooter>
+          <ChatPage />
+        </PageWithFooter>
       </AdminDrawerLayout>
     );
   }
 
   return (
     <DrawerLayout>
-      <ChatPage />
+      <PageWithFooter>
+        <ChatPage />
+      </PageWithFooter>
     </DrawerLayout>
   );
 };
 
 export default ChatRoute;
-

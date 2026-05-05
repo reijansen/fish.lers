@@ -32,12 +32,15 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, us
         backgroundColor: isOwn ? 'rgb(59, 130, 246)' : 'rgb(107, 114, 128)',
         color: 'white',
       }}>
-        {/* Role label for non-student view */}
-        {(userRole === 'admin' || userRole === 'superAdmin') && !isOwn && (
+        {/* Sender label */}
+        {!isOwn && (
           <div className="text-xs opacity-75 mb-1 font-semibold">
-            {(getPersonLabel ? getPersonLabel(message.senderUID) : message.senderUID) +
-              ' • ' +
-              getRoleLabel(message.senderRole)}
+            {userRole === "student"
+              ? // Students should see a friendly name for admins/superadmins (not raw UID)
+                (getPersonLabel ? getPersonLabel(message.senderUID) : "Admin")
+              : (getPersonLabel ? getPersonLabel(message.senderUID) : message.senderUID) +
+                " • " +
+                getRoleLabel(message.senderRole)}
           </div>
         )}
         
