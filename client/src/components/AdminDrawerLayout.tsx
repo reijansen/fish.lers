@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../hooks/useAuth";
-import { Home, Box, ClipboardList, BarChart2, Users, LogOut, PanelLeftClose, PanelLeftOpen, Fish, History, ShieldCheck, Table2 } from "lucide-react";
+import { Home, Box, ClipboardList, BarChart2, Users, LogOut, PanelLeftClose, PanelLeftOpen, Fish, History, ShieldCheck, Table2, Bell, Megaphone } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 interface AdminDrawerLayoutProps {
@@ -18,6 +18,7 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
   const { user, isSuperAdmin, claimRoleLabel, permissionNotice, dismissPermissionNotice } = useAuth();
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Check if on large screen (drawer always open)
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1024);
@@ -56,6 +57,7 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
       : []),
     { icon: <ClipboardList size={20} />, text: "Accountabilities", path: "/admin/accountabilities", active: location.pathname.startsWith("/admin/accountabilities") },
     { icon: <BarChart2 size={20} />, text: "Analytics", path: "/analytics", active: location.pathname.startsWith("/analytics") },
+    ...(isSuperAdmin ? [{ icon: <Megaphone size={20} />, text: "Manage Announcements", path: "/admin/announcements", active: location.pathname.startsWith("/admin/announcements") }] : []),
     { icon: <Users size={20} />, text: "Admin", path: "/admin/users", active: location.pathname.startsWith("/admin/users") },
   ];
   const displayClaim = claimRoleLabel.replace(/^Claim:\s*/i, "");
@@ -151,7 +153,7 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
           {/* Logout button */}
           <div className="shrink-0 p-2 is-drawer-close:flex is-drawer-close:justify-center">
             <button
-              onClick={handleLogout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="btn btn-ghost w-full justify-start gap-3 is-drawer-close:tooltip is-drawer-close:tooltip-right is-drawer-close:btn-square is-drawer-close:justify-center is-drawer-close:w-auto"
               data-tip="Logout"
             >
@@ -198,6 +200,45 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
           </button>
         </div>
       </div>
+
+      {/* Logout confirmation modal */}
+      {showLogoutConfirm && (
+        <dialog className="modal modal-open">
+          <div className="modal-box w-[calc(100%-1.5rem)] max-w-md p-4 sm:p-6">
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <LogOut size={18} />
+              Confirm Logout
+            </h3>
+
+            <p className="py-4">
+              Are you sure you want to log out?
+            </p>
+
+            <div className="modal-action">
+              <button
+                className="btn"
+                onClick={() => setShowLogoutConfirm(false)}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="btn btn-error"
+                onClick={async () => {
+                  setShowLogoutConfirm(false);
+                  await handleLogout();
+                }}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={() => setShowLogoutConfirm(false)}>close</button>
+          </form>
+        </dialog>
+      )}
     </div>
   );
 };
