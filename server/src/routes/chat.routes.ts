@@ -10,6 +10,13 @@ import {
   getConversationMessages,
   getUserConversations,
 } from "../controllers/chat.controller.js";
+import { listChatPeople } from "../controllers/chat-people.controller.js";
+import {
+  ensureMySupportConversation,
+  ensureStudentSupportConversation,
+  createEscalationConversation,
+  createEscalationConversationForAdmin,
+} from "../controllers/chat-conversations.controller.js";
 
 const router = Router();
 
@@ -24,5 +31,35 @@ router.get("/:conversationId/messages", requireAuth, getConversationMessages);
  * Get conversations for authenticated user (inbox)
  */
 router.get("/conversations", requireAuth, getUserConversations);
+
+/**
+ * GET /api/chat/people
+ * List people to start a chat with (role-filtered)
+ */
+router.get("/people", requireAuth, listChatPeople);
+
+/**
+ * POST /api/chat/support
+ * Ensure current student's support conversation exists.
+ */
+router.post("/support", requireAuth, ensureMySupportConversation);
+
+/**
+ * POST /api/chat/support/:studentUID
+ * Ensure a student's support conversation exists (admin only).
+ */
+router.post("/support/:studentUID", requireAuth, ensureStudentSupportConversation);
+
+/**
+ * POST /api/chat/escalations
+ * Create a direct escalation conversation (admin only).
+ */
+router.post("/escalations", requireAuth, createEscalationConversation);
+
+/**
+ * POST /api/chat/escalations/:adminUID
+ * SuperAdmin creates an escalation conversation with a specific admin.
+ */
+router.post("/escalations/:adminUID", requireAuth, createEscalationConversationForAdmin);
 
 export default router;

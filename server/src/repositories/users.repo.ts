@@ -69,6 +69,34 @@ export class UserRepository {
   }
 
   /**
+   * List users by role with a limit.
+   */
+  static async listByRole(role: User["role"], limit = 50): Promise<User[]> {
+    const db = getFirestore();
+    const snapshot = await db
+      .collection(USERS_COLLECTION)
+      .where("role", "==", role)
+      .limit(limit)
+      .get();
+
+    return snapshot.docs.map((doc) => doc.data() as User);
+  }
+
+  /**
+   * List super admins.
+   */
+  static async listSuperAdmins(limit = 50): Promise<User[]> {
+    const db = getFirestore();
+    const snapshot = await db
+      .collection(USERS_COLLECTION)
+      .where("isSuperAdmin", "==", true)
+      .limit(limit)
+      .get();
+
+    return snapshot.docs.map((doc) => doc.data() as User);
+  }
+
+  /**
    * Update a user.
    */
   static async update(uid: string, data: UserUpdateInput): Promise<void> {

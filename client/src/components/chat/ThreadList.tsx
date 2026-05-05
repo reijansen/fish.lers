@@ -6,6 +6,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Conversation } from '../../context/ChatContext';
+import { Plus } from "lucide-react";
 
 interface ThreadListProps {
   conversations: Conversation[];
@@ -14,6 +15,7 @@ interface ThreadListProps {
   userRole: 'student' | 'admin' | 'superAdmin' | null;
   isLoading: boolean;
   onSelectConversation: (conv: Conversation) => void;
+  onNewChat: () => void;
 }
 
 export const ThreadList: React.FC<ThreadListProps> = ({
@@ -23,6 +25,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
   userRole,
   isLoading,
   onSelectConversation,
+  onNewChat,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'support' | 'escalation'>('all');
@@ -65,7 +68,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
     <div className="w-full h-full flex flex-col bg-base-100 border-r border-base-300">
       {/* Header */}
       <div className="border-b border-base-300 p-4 sticky top-0 bg-base-100">
-        <h2 className="text-xl font-bold mb-4">Messages</h2>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h2 className="text-xl font-bold">Messages</h2>
+          <button className="btn btn-sm btn-primary gap-2" onClick={onNewChat}>
+            <Plus className="w-4 h-4" />
+            New Chat
+          </button>
+        </div>
 
         {/* Search */}
         <input

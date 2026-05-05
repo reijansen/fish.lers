@@ -425,4 +425,34 @@ export class ChatDataService {
 
     await ChatRepository.updateReadState(conversationID, userUID, readUpToMessageID, message.createdAt);
   }
+
+  /**
+   * Create a direct escalation conversation (admin -> superAdmins).
+   * Used by UI "New Chat" flows; not tied to a specific support conversation.
+   */
+  static async createDirectEscalationConversation(
+    adminUID: string,
+    reason: string
+  ): Promise<Conversation> {
+    const validation = this.validateEscalationReason(reason);
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
+    const conversationID = this.generateEscalationConversationID(adminUID);
+    const now = new Date().toISOString();
+
+    return ChatRepository.upsertConversation(conversationID, {
+      conversationID,
+      type: "escalation",
+      status: "active",
+      adminUID,
+      escalationReason: reason.trim(),
+      participants: [adminUID],
+      messageCount: 0,
+      lastMessageAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 }

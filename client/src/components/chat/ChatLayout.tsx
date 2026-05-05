@@ -10,9 +10,12 @@ import { ThreadList } from './ThreadList';
 import { ChatThread } from './ChatThread';
 import { MessageComposer } from './MessageComposer';
 import { ChatToast } from './ChatToast';
+import { NewChatModal, type ChatPerson } from './NewChatModal';
+import { auth } from '../../firebase';
 
 export const ChatLayout: React.FC = () => {
   const chat = useChat();
+  const [isNewChatOpen, setIsNewChatOpen] = React.useState(false);
 
   // Load conversations on mount
   useEffect(() => {
@@ -22,6 +25,83 @@ export const ChatLayout: React.FC = () => {
   const handleSelectConversation = async (conv: any) => {
     chat.setCurrentConversation(conv);
     await chat.loadConversation(conv.conversationID);
+  };
+
+  const openConversationById = async (conversationID: string) => {
+    // Prefer an existing conversation object if present; otherwise create a lightweight placeholder.
+    const existing = chat.conversations.find((c) => c.conversationID === conversationID) || null;
+    chat.setCurrentConversation(
+      existing ||
+        ({
+          conversationID,
+          type: conversationID.startsWith("support:") ? "support" : "escalation",
+          status: "active",
+          participants: [],
+          messageCount: 0,
+          lastMessageAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        } as any)
+    );
+
+    await chat.loadConversation(conversationID);
+  };
+
+  const handleStartNewChat = async (person: ChatPerson) => {
+    const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(""));
+    if (!token) throw new Error("Not authenticated");
+
+    // Student: always their own support thread
+    if (chat.userRole === "student") {
+      await fetch("http://localhost:5000/api/chat/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      await openConversationById(`support:${chat.userUID}`);
+      return;
+    }
+
+    // Admin/SuperAdmin: chatting with a student opens that student's support thread
+    if (person.role === "student") {
+      await fetch(`http://localhost:5000/api/chat/support/${person.uid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      await openConversationById(`support:${person.uid}`);
+      return;
+    }
+
+    // Admin talking to superAdmin -> create escalation conversation
+    if (chat.userRole === "admin" && person.isSuperAdmin) {
+      const res = await fetch("http://localhost:5000/api/chat/escalations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: "Direct escalation" }),
+      });
+      if (!res.ok) throw new Error("Failed to create escalation conversation");
+      const data = await res.json();
+      const conversationID = data?.conversation?.conversationID as string | undefined;
+      if (!conversationID) throw new Error("Invalid escalation response");
+      await openConversationById(conversationID);
+      return;
+    }
+
+    // SuperAdmin starting a chat with an admin -> create an escalation conversation tied to that admin.
+    if (chat.userRole === "superAdmin" && person.role === "admin") {
+      const res = await fetch(`http://localhost:5000/api/chat/escalations/${person.uid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: "Direct escalation" }),
+      });
+      if (!res.ok) throw new Error("Failed to create escalation conversation");
+      const data = await res.json();
+      const conversationID = data?.conversation?.conversationID as string | undefined;
+      if (!conversationID) throw new Error("Invalid escalation response");
+      await openConversationById(conversationID);
+      return;
+    }
+
+    throw new Error("Unsupported chat target for your role");
   };
 
   const handleSendMessage = async (text: string) => {
@@ -93,6 +173,7 @@ export const ChatLayout: React.FC = () => {
             userRole={chat.userRole}
             isLoading={chat.isLoadingConversations}
             onSelectConversation={handleSelectConversation}
+            onNewChat={() => setIsNewChatOpen(true)}
           />
         </div>
 
@@ -154,6 +235,7 @@ export const ChatLayout: React.FC = () => {
                   const checkbox = document.getElementById('my-drawer') as HTMLInputElement;
                   if (checkbox) checkbox.checked = false;
                 }}
+                onNewChat={() => setIsNewChatOpen(true)}
               />
             </div>
           </div>
@@ -188,6 +270,12 @@ export const ChatLayout: React.FC = () => {
           )}
         </div>
       </div>
+
+      <NewChatModal
+        open={isNewChatOpen}
+        onClose={() => setIsNewChatOpen(false)}
+        onStart={handleStartNewChat}
+      />
     </div>
   );
 };
