@@ -295,13 +295,12 @@ const AdminAccountabilities: React.FC = () => {
             <Plus className="w-4 h-4" />
             Add New Accountability
           </button>
+
+          <button className="btn btn-primary btn-sm gap-2" onClick={exportTablePDF}>
+            Export as PDF
+          </button>
         </div>
       </div>
-
-      
-      <button className="btn btn-primary mt-3" onClick={exportTablePDF}>
-        Export PDF
-      </button>
 
       {/* Stats */}
       <MobileStatsPager
