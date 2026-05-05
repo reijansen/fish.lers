@@ -16,6 +16,7 @@ interface ChatThreadProps {
   userUID: string | null;
   userRole: 'student' | 'admin' | 'superAdmin' | null;
   typingUsers?: Array<{ userUID: string; userRole: ChatMessage["senderRole"] }>;
+  getPersonLabel?: (uid: string) => string;
   onLoadMore: () => Promise<void>;
 }
 
@@ -27,6 +28,7 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
   userUID,
   userRole,
   typingUsers,
+  getPersonLabel,
   onLoadMore,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,7 +70,11 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
         <div>
           <h3 className="font-semibold text-lg">
             {currentConversation.type === 'support'
-              ? `Support Chat${currentConversation.studentUID ? ` - ${currentConversation.studentUID}` : ''}`
+              ? `Support Chat${
+                  currentConversation.studentUID
+                    ? ` - ${getPersonLabel ? getPersonLabel(currentConversation.studentUID) : currentConversation.studentUID}`
+                    : ''
+                }`
               : `Escalation${currentConversation.escalationReason ? ` - ${currentConversation.escalationReason}` : ''}`}
           </h3>
           <p className="text-sm text-base-content/60">
@@ -123,6 +129,7 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
             message={msg}
             isOwn={msg.senderUID === userUID}
             userRole={userRole}
+            getPersonLabel={getPersonLabel}
           />
         ))}
 

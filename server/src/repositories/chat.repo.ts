@@ -141,24 +141,30 @@ export class ChatRepository {
     const messagesRef = conversationRef.collection(MESSAGES_SUBCOLLECTION);
 
     const pageLimit = cursor?.limit || 50;
-    let query: FirestoreQuery = messagesRef
-      .where("deletedAt", "==", null)
-      .orderBy("createdAt", "desc")
-      .limit(pageLimit + 1);
+
+    // NOTE: We intentionally do NOT filter by deletedAt at the query level.
+    // Some older messages may not have deletedAt set (undefined), and Firestore
+    // can't easily query for "null OR missing". We'll filter in-memory instead.
+    let query: FirestoreQuery = messagesRef.orderBy("createdAt", "desc").limit(pageLimit + 25);
 
     if (cursor?.beforeTimestamp) {
       // Fetch messages before a specific timestamp (for pagination)
       query = messagesRef
-        .where("deletedAt", "==", null)
         .where("createdAt", "<", cursor.beforeTimestamp)
         .orderBy("createdAt", "desc")
-        .limit(pageLimit + 1);
+        .limit(pageLimit + 25);
     }
 
     const querySnap = await query.get();
 
-    const hasMore = querySnap.docs.length > pageLimit;
-    const docs = hasMore ? querySnap.docs.slice(0, pageLimit) : querySnap.docs;
+    // Filter out deleted messages (deletedAt is set to an ISO string when deleted)
+    const filteredDocs = querySnap.docs.filter((docSnap) => {
+      const data = docSnap.data() || {};
+      return !data.deletedAt;
+    });
+
+    const hasMore = filteredDocs.length > pageLimit;
+    const docs = hasMore ? filteredDocs.slice(0, pageLimit) : filteredDocs;
 
     const messages: ChatMessage[] = docs.map((docSnap) => ({
       messageID: docSnap.id,

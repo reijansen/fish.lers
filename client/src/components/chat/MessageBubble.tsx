@@ -11,9 +11,10 @@ interface MessageBubbleProps {
   message: ChatMessage;
   isOwn: boolean;
   userRole: 'student' | 'admin' | 'superAdmin' | null;
+  getPersonLabel?: (uid: string) => string;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, userRole }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, userRole, getPersonLabel }) => {
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -34,7 +35,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, us
         {/* Role label for non-student view */}
         {(userRole === 'admin' || userRole === 'superAdmin') && !isOwn && (
           <div className="text-xs opacity-75 mb-1 font-semibold">
-            {getRoleLabel(message.senderRole)}
+            {(getPersonLabel ? getPersonLabel(message.senderUID) : message.senderUID) +
+              ' • ' +
+              getRoleLabel(message.senderRole)}
           </div>
         )}
         

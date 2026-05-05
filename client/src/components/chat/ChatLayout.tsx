@@ -174,6 +174,7 @@ export const ChatLayout: React.FC = () => {
             isLoading={chat.isLoadingConversations}
             onSelectConversation={handleSelectConversation}
             onNewChat={() => setIsNewChatOpen(true)}
+            getPersonLabel={chat.getPersonLabel}
           />
         </div>
 
@@ -195,6 +196,7 @@ export const ChatLayout: React.FC = () => {
                     ? chat.typingUsersByConversation[chat.currentConversation.conversationID] || []
                     : []
                 }
+                getPersonLabel={chat.getPersonLabel}
                 onLoadMore={handleLoadMoreMessages}
               />
 
@@ -236,6 +238,7 @@ export const ChatLayout: React.FC = () => {
                   if (checkbox) checkbox.checked = false;
                 }}
                 onNewChat={() => setIsNewChatOpen(true)}
+                getPersonLabel={chat.getPersonLabel}
               />
             </div>
           </div>
@@ -255,6 +258,7 @@ export const ChatLayout: React.FC = () => {
                 ? chat.typingUsersByConversation[chat.currentConversation.conversationID] || []
                 : []
             }
+            getPersonLabel={chat.getPersonLabel}
             onLoadMore={handleLoadMoreMessages}
           />
 

@@ -51,6 +51,14 @@ export interface InboxNotification {
   message: string;
 }
 
+export interface ChatPerson {
+  uid: string;
+  displayName?: string;
+  email: string;
+  role: "student" | "admin";
+  isSuperAdmin?: boolean;
+}
+
 export interface ChatContextType {
   // Connection state
   isConnected: boolean;
@@ -90,6 +98,10 @@ export interface ChatContextType {
   // Phase 5 UX state
   typingUsersByConversation: Record<string, Array<{ userUID: string; userRole: ChatMessage["senderRole"] }>>;
   signalTyping: (conversationID: string) => void;
+
+  // UI helpers
+  peopleByUID: Record<string, ChatPerson>;
+  getPersonLabel: (uid: string) => string;
 }
 
 // ============================================================================
@@ -130,6 +142,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const seenClientIDsRef = useRef<Set<string>>(new Set());
   const [connectNonce, setConnectNonce] = useState(0);
   const currentConversationIdRef = useRef<string | null>(null);
+  const [peopleByUID, setPeopleByUID] = useState<Record<string, ChatPerson>>({});
 
   useEffect(() => {
     currentConversationIdRef.current = currentConversation?.conversationID || null;
@@ -437,6 +450,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (data.unreadCounts && typeof data.unreadCounts === 'object') {
         setUnreadCounts(data.unreadCounts);
       }
+
+      // Load a user directory for display names/emails (role-filtered by server).
+      try {
+        const peopleRes = await fetch("http://localhost:5000/api/chat/people?limit=50", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (peopleRes.ok) {
+          const peopleData = await peopleRes.json();
+          const list: ChatPerson[] = Array.isArray(peopleData.people) ? peopleData.people : [];
+          const next: Record<string, ChatPerson> = {};
+          for (const p of list) next[p.uid] = p;
+          setPeopleByUID((prev) => ({ ...prev, ...next }));
+        }
+      } catch {
+        // ignore directory failures; UI will fall back to UID.
+      }
     } catch (err: any) {
       console.error('[Chat] Error loading conversations:', err);
       setError(err.message || 'Failed to load conversations');
@@ -444,6 +473,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setIsLoadingConversations(false);
     }
   }, [isConnected]);
+
+  const getPersonLabel = useCallback(
+    (uid: string) => {
+      const person = peopleByUID[uid];
+      if (!person) return uid;
+      return person.displayName || person.email || uid;
+    },
+    [peopleByUID]
+  );
 
   // Phase 6: reconnect resync
   useEffect(() => {
@@ -504,6 +542,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     dismissToast: () => setToastNotification(null),
     typingUsersByConversation,
     signalTyping,
+    peopleByUID,
+    getPersonLabel,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

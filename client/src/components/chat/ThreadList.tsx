@@ -16,6 +16,7 @@ interface ThreadListProps {
   isLoading: boolean;
   onSelectConversation: (conv: Conversation) => void;
   onNewChat: () => void;
+  getPersonLabel: (uid: string) => string;
 }
 
 export const ThreadList: React.FC<ThreadListProps> = ({
@@ -26,6 +27,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
   isLoading,
   onSelectConversation,
   onNewChat,
+  getPersonLabel,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'support' | 'escalation'>('all');
@@ -138,7 +140,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold truncate text-sm">
                         {conv.type === 'support'
-                          ? `Support: ${conv.studentUID || 'Unknown'}`
+                          ? `Support: ${conv.studentUID ? getPersonLabel(conv.studentUID) : 'Unknown'}`
                           : `Escalation${conv.escalationReason ? ': ' + conv.escalationReason : ''}`}
                       </h3>
                     </div>
