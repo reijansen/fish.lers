@@ -83,9 +83,10 @@ export default function ManageAnnouncements() {
     }
   };
 
-  const pendingAnnouncements = announcements.filter(a => a.status === 'pending');
-  const approvedAnnouncements = announcements.filter(a => a.status === 'approved');
-  const rejectedAnnouncements = announcements.filter(a => a.status === 'rejected');
+  const activeAnnouncements = announcements.filter((a) => a.active !== false);
+  const pendingAnnouncements = activeAnnouncements.filter((a) => a.status === 'pending');
+  const approvedAnnouncements = activeAnnouncements.filter((a) => a.status === 'approved');
+  const rejectedAnnouncements = activeAnnouncements.filter((a) => a.status === 'rejected');
 
   return (
     <>

@@ -31,6 +31,10 @@ const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ announcements }
     }
   };
 
+  const getTypeLabel = (type: Announcement['type']) => {
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
   const getAlertClass = (type: string) => {
     switch (type) {
       case 'error':
@@ -62,7 +66,12 @@ const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ announcements }
             {getIcon(announcement.type)}
             <div className="flex-1">
               {announcement.title && (
-                <h3 className="font-semibold">{announcement.title}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-semibold">{announcement.title}</h3>
+                  <span className="badge badge-outline badge-sm uppercase">
+                    {getTypeLabel(announcement.type)}
+                  </span>
+                </div>
               )}
               <p className="text-sm">{announcement.message}</p>
             </div>
