@@ -107,12 +107,6 @@ export default function CreateAnnouncement() {
       <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => navigate(-1)}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
           <div>
             <h1 className="text-2xl font-bold">Create Announcement</h1>
             <p className="text-base-content/70">
@@ -135,7 +129,7 @@ export default function CreateAnnouncement() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
-          <div className="form-control">
+          <div className="form-control w-full max-w-xs">
             <label className="label">
               <span className="label-text font-medium">Title *</span>
             </label>
@@ -150,7 +144,7 @@ export default function CreateAnnouncement() {
           </div>
 
           {/* Message */}
-          <div className="form-control">
+          <div className="form-control w-full max-w-xs">
             <label className="label">
               <span className="label-text font-medium">Message *</span>
             </label>
@@ -164,7 +158,7 @@ export default function CreateAnnouncement() {
           </div>
 
           {/* Type */}
-          <div className="form-control">
+          <div className="form-control w-full max-w-xs">
             <label className="label">
               <span className="label-text font-medium">Type</span>
             </label>
@@ -204,7 +198,7 @@ export default function CreateAnnouncement() {
           </div>
 
           {/* Date Range */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-xs">
             <div className="form-control">
               <label className="label">
                 <span className="label-text font-medium">Start Date (Optional)</span>

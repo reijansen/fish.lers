@@ -902,25 +902,17 @@ const AdminDashboard: React.FC = () => {
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
           <p className="text-base-content/70">Manage and review equipment requests.</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            className="btn btn-outline btn-sm"
-            onClick={() => navigate('/admin/announcements/create')}
-          >
-            <Bell className="w-4 h-4" />
-            Create Announcement
-          </button>
-        </div>
-        <div className="relative">
-          <button className="btn btn-ghost btn-circle" onClick={toggleNotif}>
-            <div className="indicator">
-              <Bell className="w-5 h-5" />
-              {recentNotifications.length > 0 && (
-                <span className="indicator-item badge badge-error badge-xs" />
-              )}
-            </div>
-          </button>
-          {notifOpen && (
+        <div className="flex flex-col items-end gap-2">
+          <div className="relative">
+            <button className="btn btn-ghost btn-circle" onClick={toggleNotif}>
+              <div className="indicator">
+                <Bell className="w-5 h-5" />
+                {recentNotifications.length > 0 && (
+                  <span className="indicator-item badge badge-error badge-xs" />
+                )}
+              </div>
+            </button>
+            {notifOpen && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)}></div>
               <div className="absolute right-0 mt-2 bg-base-100 border border-base-300 rounded-box w-80 shadow-2xl z-50">
@@ -989,6 +981,13 @@ const AdminDashboard: React.FC = () => {
               </div>
             </>
           )}
+          </div>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => navigate('/admin/announcements/create')}
+          >
+            Create Announcement
+          </button>
         </div>
       </div>
 
