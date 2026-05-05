@@ -13,6 +13,7 @@ export default function ManageAnnouncements() {
 
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [action, setAction] = useState<'approve' | 'reject' | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [processing, setProcessing] = useState(false);
 
@@ -42,6 +43,20 @@ export default function ManageAnnouncements() {
       setReviewNotes('');
     } catch (error) {
       console.error('Failed to process announcement:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+
+    setProcessing(true);
+    try {
+      await deleteAnnouncement(deleteTarget.announcementID!);
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Failed to delete announcement:', error);
     } finally {
       setProcessing(false);
     }
@@ -223,7 +238,7 @@ export default function ManageAnnouncements() {
                         <div className="flex gap-2">
                           <button
                             className="btn btn-error btn-sm"
-                            onClick={() => deleteAnnouncement(announcement.announcementID!)}
+                            onClick={() => setDeleteTarget(announcement)}
                           >
                             <XCircle className="w-4 h-4" />
                             Delete
@@ -287,7 +302,7 @@ export default function ManageAnnouncements() {
                           </button>
                           <button
                             className="btn btn-error btn-sm"
-                            onClick={() => deleteAnnouncement(announcement.announcementID!)}
+                            onClick={() => setDeleteTarget(announcement)}
                           >
                             <XCircle className="w-4 h-4" />
                             Delete
@@ -345,6 +360,31 @@ export default function ManageAnnouncements() {
                 disabled={processing}
               >
                 {action === 'approve' ? 'Approve' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </dialog>
+      )}
+
+      {deleteTarget && (
+        <dialog className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg">Confirm Delete</h3>
+            <p className="py-4">Are you sure you want to delete the announcement &quot;{deleteTarget.title}&quot;?</p>
+            <div className="modal-action">
+              <button
+                className="btn"
+                onClick={() => setDeleteTarget(null)}
+                disabled={processing}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-error"
+                onClick={handleDelete}
+                disabled={processing}
+              >
+                Delete
               </button>
             </div>
           </div>
