@@ -1,0 +1,102 @@
+// Firestore Security Rules for Chat System
+// Path: firebase/firestore.rules (append to existing rules)
+
+// ============================================================================
+// CHAT SYSTEM SECURITY RULES (Phase 0)
+// ============================================================================
+
+// Helper: Check if user has admin role
+function isAdmin() {
+  return request.auth.token.admin == true;
+}
+
+// Helper: Check if user has superAdmin role
+function isSuperAdmin() {
+  return request.auth.token.superAdmin == true;
+}
+
+// Helper: User is student (any authenticated user)
+function isStudent() {
+  return request.auth != null;
+}
+
+// Helper: Get user's role
+function getUserRole() {
+  return request.auth.token.admin == true && request.auth.token.superAdmin == true ? "superAdmin" :
+         request.auth.token.admin == true ? "admin" :
+         "student";
+}
+
+// ============================================================================
+// CHAT CONVERSATIONS - METADATA
+// ============================================================================
+
+match /chats/{conversationID}/metadata {
+  // READ: 
+  // - Student can read own support conversation
+  // - Admin can read any student support conversation
+  // - SuperAdmin can read any conversation (student support + escalation)
+  allow read: if 
+    (resource.data.type == "student_support" && resource.data.studentUID == request.auth.uid) ||
+    (isAdmin() || isSuperAdmin());
+  
+  // WRITE: Only server can write (via Admin SDK or Cloud Functions)
+  // Disallow direct client writes
+  allow write: if false;
+}
+
+// ============================================================================
+// CHAT MESSAGES
+// ============================================================================
+
+match /chats/{conversationID}/messages/{messageID} {
+  // READ:
+  // - Student can read messages in own support conversation
+  // - Admin/SuperAdmin can read all messages in any student support conversation
+  // - Admin/SuperAdmin can read messages in escalations
+  allow read: if 
+    let convType = get(/databases/$(database)/documents/chats/$(conversationID)/metadata).data.type in
+    let studentUID = get(/databases/$(database)/documents/chats/$(conversationID)/metadata).data.studentUID in
+    (convType == "student_support" && (studentUID == request.auth.uid || isAdmin() || isSuperAdmin())) ||
+    (convType == "admin_escalation" && (isAdmin() || isSuperAdmin()));
+  
+  // WRITE: Only server can write
+  allow write: if false;
+}
+
+// ============================================================================
+// CHAT PARTICIPANTS (Lightweight permission tracking)
+// ============================================================================
+
+match /chats/{conversationID}/participants/{userUID} {
+  // READ: Any authenticated user can check if they're in the conversation
+  allow read: if request.auth != null;
+  
+  // WRITE: Only server
+  allow write: if false;
+}
+
+// ============================================================================
+// OPTIONAL: DENORMALIZED CHAT METADATA (for analytics, Phase 1+)
+// ============================================================================
+
+match /chat_metadata/{conversationID} {
+  // Admin/SuperAdmin can read for analytics
+  allow read: if isAdmin() || isSuperAdmin();
+  
+  // Write: server only
+  allow write: if false;
+}
+
+// ============================================================================
+// NOTE: These rules assume server-side validation via:
+// 1. Cloud Functions (for message creation)
+// 2. Admin SDK in backend (for metadata updates)
+// 3. Custom API endpoints with proper auth checks
+//
+// DO NOT allow client-side writes to enforce:
+// - Rate limiting
+// - Message validation
+// - Conversation creation logic
+// - Proper timestamp generation
+// ============================================================================
