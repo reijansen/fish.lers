@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../hooks/useAuth";
-import { Home, Box, ClipboardList, BarChart2, Users, LogOut, PanelLeftClose, PanelLeftOpen, Fish, History, ShieldCheck, Table2, Bell } from "lucide-react";
+import { Home, Box, ClipboardList, BarChart2, Users, LogOut, PanelLeftClose, PanelLeftOpen, Fish, History, ShieldCheck, Table2, Bell, Megaphone } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 interface AdminDrawerLayoutProps {
@@ -56,7 +56,7 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
       : []),
     { icon: <ClipboardList size={20} />, text: "Accountabilities", path: "/admin/accountabilities", active: location.pathname.startsWith("/admin/accountabilities") },
     { icon: <BarChart2 size={20} />, text: "Analytics", path: "/analytics", active: location.pathname.startsWith("/analytics") },
-    { icon: <Bell size={20} />, text: "Announcements", path: "/admin/announcements", active: location.pathname.startsWith("/admin/announcements") },
+    { icon: <Megaphone size={20} />, text: "Announcements", path: "/admin/announcements", active: location.pathname.startsWith("/admin/announcements") },
     { icon: <Users size={20} />, text: "Admin", path: "/admin/users", active: location.pathname.startsWith("/admin/users") },
   ];
   const displayClaim = claimRoleLabel.replace(/^Claim:\s*/i, "");
