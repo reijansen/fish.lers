@@ -258,7 +258,7 @@ const AdminAccountabilities: React.FC = () => {
   }, [modalEditable, persistItemResolutions])
 
   const exportTablePDF = () => {
-    const pdf = new jsPDF();
+    const pdf = new jsPDF("landscape", "mm", "A4");
 
     pdf.setFontSize(16);
     pdf.text("Admin Accountabilities Report", 14, 15);
