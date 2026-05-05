@@ -6,8 +6,10 @@
  */
 
 import { Server as SocketIOServer, Socket } from "socket.io";
-import { getSocketUser } from "./socket-auth.js";
+import { getSocketUser, SocketUser } from "./socket-auth.js";
 import { canUserAccessConversation } from "./access-control.js";
+import { checkRateLimit } from "./rate-limiter.js";
+import { handleMessageSend, MESSAGE_CONFIG } from "./message-handler.js";
 
 /**
  * Room naming conventions:
@@ -103,6 +105,27 @@ export function setupEventHandlers(io: SocketIOServer): void {
         });
       }
     });
+
+    // ====================================================================
+    // EVENT: message:send
+    // Send and persist a message with realtime delivery
+    // ====================================================================
+    socket.on(
+      "message:send",
+      (payload: any, callback: any) => {
+        // Check rate limit
+        if (!checkRateLimit(user.uid, MESSAGE_CONFIG.RATE_LIMIT_MAX_MESSAGES, MESSAGE_CONFIG.RATE_LIMIT_WINDOW_MS)) {
+          console.warn(`[Message] Rate limit exceeded for user ${user.uid}`);
+          return callback({
+            ok: false,
+            error: "Rate limit exceeded. Please wait before sending more messages.",
+          });
+        }
+
+        // Handle message send (async)
+        handleMessageSend(io, socket, user, payload, callback);
+      }
+    );
 
     // ====================================================================
     // EVENT: ping

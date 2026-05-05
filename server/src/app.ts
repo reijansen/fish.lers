@@ -7,6 +7,7 @@ import { requestMetricsMiddleware, startRequestMetricsReporter } from "./middlew
 import equipmentRoutes from "./routes/equipment.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import requestRoutes from "./routes/requests.routes.js";
+import chatRoutes from "./routes/chat.routes.js";
 import {
   createSocketIOServer,
   setupSocketAuth,
@@ -73,6 +74,7 @@ export function createApp(config: AppConfig): express.Application {
   app.use("/api/equipment", equipmentRoutes);
   app.use("/api/auth", authRoutes);
   app.use("/api/requests", requestRoutes);
+  app.use("/api/chat", chatRoutes);
 
   // 404 handler
   app.use((_req, res) => {
