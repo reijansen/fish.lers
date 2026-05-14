@@ -114,6 +114,8 @@ export class ChatRepository {
       messageCount: currentCount + 1,
       lastMessageAt: now,
       lastMessagePreview: input.content.slice(0, 100),
+      lastMessageSenderUID: input.senderUID,
+      lastMessageSenderRole: input.senderRole,
       updatedAt: now,
     });
 
@@ -221,6 +223,10 @@ export class ChatRepository {
       .limit(50);
 
     const querySnap = await query.get();
+    console.log(`[ChatRepo] getStudentConversations for ${studentUID}: found ${querySnap.size} conversations`);
+    querySnap.forEach((doc) => {
+      console.log(`[ChatRepo]   - ${doc.id}:`, doc.data());
+    });
 
     const conversations = querySnap.docs.map((docSnap) => ({
       conversationID: docSnap.id,
@@ -336,6 +342,40 @@ export class ChatRepository {
     );
 
     return conversations;
+  }
+
+  /**
+   * Get the most recent active escalation conversation for an admin.
+   * Used to avoid creating duplicate escalation threads from repeated "New Chat" clicks.
+   */
+  static async getLatestActiveEscalationForAdmin(adminUID: string): Promise<Conversation | null> {
+    const db = getFirestore();
+    const conversationsRef = db.collection(CONVERSATIONS_COLLECTION);
+
+    const querySnap = await conversationsRef
+      .where("type", "==", "escalation")
+      .where("adminUID", "==", adminUID)
+      .limit(50)
+      .get();
+
+    const items = querySnap.docs.map(
+      (docSnap) =>
+        ({
+          conversationID: docSnap.id,
+          ...(docSnap.data() || {}),
+        } as Conversation)
+    );
+
+    const active = items.filter((c) => c.status === "active");
+    if (!active.length) return null;
+
+    active.sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.lastMessageAt).getTime() -
+        new Date(a.updatedAt || a.lastMessageAt).getTime()
+    );
+
+    return active[0] || null;
   }
 
   /**

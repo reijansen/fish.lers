@@ -1,7 +1,7 @@
 /**
  * MessageBubble Component
  * 
- * Displays individual message with role label and styling.
+ * Displays individual message with role label and styling (Messenger-like).
  */
 
 import React from 'react';
@@ -17,40 +17,43 @@ interface MessageBubbleProps {
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwn, userRole, getPersonLabel }) => {
   const formatTime = (isoString: string) => {
     const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
   const getRoleLabel = (role: string) => {
-    if (role === 'superAdmin') return '🔴 SuperAdmin';
-    if (role === 'admin') return '🔵 Admin';
+    if (role === 'superAdmin') return 'SuperAdmin';
+    if (role === 'admin') return 'Admin';
     return 'Student';
   };
 
+  const senderName = getPersonLabel ? getPersonLabel(message.senderUID) : (message.senderRole === 'student' ? 'Student' : 'Admin');
+
   return (
-    <div className={`chat ${isOwn ? 'chat-end' : 'chat-start'} mb-4`}>
-      <div className="chat-bubble" style={{
-        backgroundColor: isOwn ? 'rgb(59, 130, 246)' : 'rgb(107, 114, 128)',
-        color: 'white',
-      }}>
-        {/* Sender label */}
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-2 px-2 sm:px-0`}>
+      <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} max-w-[85%] sm:max-w-sm`}>
+        {/* Sender name - only show for others' messages */}
         {!isOwn && (
-          <div className="text-xs opacity-75 mb-1 font-semibold">
-            {userRole === "student"
-              ? // Students should see a friendly name for admins/superadmins (not raw UID)
-                (getPersonLabel ? getPersonLabel(message.senderUID) : "Admin")
-              : (getPersonLabel ? getPersonLabel(message.senderUID) : message.senderUID) +
-                " • " +
-                getRoleLabel(message.senderRole)}
-          </div>
+          <span className="text-xs font-semibold text-base-content/70 mb-1 px-3">
+            {senderName}
+            {userRole !== 'student' && ` (${getRoleLabel(message.senderRole)})`}
+          </span>
         )}
         
-        {/* Message content */}
-        <p className="break-words">{message.content}</p>
+        {/* Message bubble */}
+        <div
+          className={`rounded-3xl px-3 sm:px-4 py-2 break-words ${
+            isOwn
+              ? 'bg-primary text-primary-content rounded-br-none'
+              : 'bg-base-200 text-base-content rounded-bl-none'
+          }`}
+        >
+          <p className="text-xs sm:text-sm">{message.content}</p>
+        </div>
         
         {/* Timestamp */}
-        <div className="text-xs opacity-75 mt-1">
+        <span className="text-xs text-base-content/50 mt-1 px-3">
           {formatTime(message.createdAt)}
-        </div>
+        </span>
       </div>
     </div>
   );

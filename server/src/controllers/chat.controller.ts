@@ -9,6 +9,7 @@ import { Request, Response } from "express";
 import { ChatRepository } from "../repositories/chat.repo.js";
 import { canUserAccessConversation } from "../realtime/access-control.js";
 import type { SocketUser } from "../realtime/socket-auth.js";
+import { ChatDataService } from "../services/chat-data.service.js";
 
 /**
  * GET /api/chat/:conversationId/messages
@@ -157,6 +158,16 @@ export async function getUserConversations(
       // Students see only their support conversation
       const supportConvs = await ChatRepository.getStudentConversations(userId);
       conversations = supportConvs;
+    }
+
+    // Staff group chat (admins + superAdmins) is always present and pinned by the client.
+    if (isAdmin || isSuperAdmin) {
+      try {
+        const staff = await ChatDataService.getOrCreateStaffAdminsConversation();
+        conversations = [staff, ...(conversations || [])];
+      } catch {
+        // Ignore staff room failures; inbox still works without it.
+      }
     }
 
     // Limit results

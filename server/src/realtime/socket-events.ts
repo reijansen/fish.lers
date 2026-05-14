@@ -97,7 +97,7 @@ export function setupEventHandlers(io: SocketIOServer): void {
             const isSupport = parsed?.type === "support";
 
             // Claim support thread for this admin/superAdmin if not already claimed.
-            if (isSupport && (user.admin || user.superAdmin) && !convo.adminUID) {
+            if (isSupport && user.admin && !user.superAdmin && !convo.adminUID) {
               await ChatRepository.updateConversation(conversationID, {
                 participants: [...participants, user.uid],
                 adminUID: user.uid,

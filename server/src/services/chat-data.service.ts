@@ -37,6 +37,7 @@ export interface UserRole {
  * Contains business logic for chat operations.
  */
 export class ChatDataService {
+  static readonly STAFF_ADMINS_CONVERSATION_ID = "staff:admins";
   // ========================================================================
   // CONVERSATION ID HELPERS (Deterministic)
   // ========================================================================
@@ -65,6 +66,16 @@ export class ChatDataService {
   }
 
   /**
+   * Generate deterministic conversation ID for staff group chat.
+   * Format: `staff:admins`
+   *
+   * Single shared room for admins + superAdmins.
+   */
+  static generateStaffConversationID(): string {
+    return ChatDataService.STAFF_ADMINS_CONVERSATION_ID;
+  }
+
+  /**
    * Parse a conversation ID to extract type and components.
    */
   static parseConversationID(
@@ -74,6 +85,7 @@ export class ChatDataService {
     studentUID?: string;
     adminUID?: string;
     escalationID?: string;
+    staffKey?: "admins";
   } | null {
     if (conversationID.startsWith("support:")) {
       const studentUID = conversationID.slice("support:".length);
@@ -87,6 +99,10 @@ export class ChatDataService {
         const escalationID = parts[2];
         return { type: "escalation", adminUID, escalationID };
       }
+    }
+
+    if (conversationID === ChatDataService.STAFF_ADMINS_CONVERSATION_ID) {
+      return { type: "staff", staffKey: "admins" };
     }
 
     return null;
@@ -251,17 +267,47 @@ export class ChatDataService {
     studentUID: string
   ): Promise<Conversation> {
     const conversationID = this.generateSupportConversationID(studentUID);
+    console.log(`[ChatDataService] Getting or creating support conversation for ${studentUID} (ID: ${conversationID})`);
     let conversation = await ChatRepository.getConversation(conversationID);
 
     if (!conversation) {
       // Create new support conversation
       const now = new Date().toISOString();
+      console.log(`[ChatDataService] Creating new support conversation: ${conversationID}`);
       conversation = await ChatRepository.upsertConversation(conversationID, {
         conversationID,
         type: "support",
         status: "active",
         studentUID,
         participants: [studentUID],
+        messageCount: 0,
+        lastMessageAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      console.log(`[ChatDataService] Created support conversation:`, conversation);
+    } else {
+      console.log(`[ChatDataService] Support conversation already exists:`, conversation);
+    }
+
+    return conversation;
+  }
+
+  /**
+   * Get or create the staff group chat for admins + superAdmins.
+   */
+  static async getOrCreateStaffAdminsConversation(): Promise<Conversation> {
+    const conversationID = this.generateStaffConversationID();
+    let conversation = await ChatRepository.getConversation(conversationID);
+
+    if (!conversation) {
+      const now = new Date().toISOString();
+      conversation = await ChatRepository.upsertConversation(conversationID, {
+        conversationID,
+        type: "staff",
+        status: "active",
+        staffKey: "admins",
+        participants: [],
         messageCount: 0,
         lastMessageAt: now,
         createdAt: now,
@@ -438,6 +484,12 @@ export class ChatDataService {
     const validation = this.validateEscalationReason(reason);
     if (!validation.valid) {
       throw new Error(validation.error);
+    }
+
+    // Reuse an existing active escalation thread for this admin to avoid duplicates.
+    const existing = await ChatRepository.getLatestActiveEscalationForAdmin(adminUID);
+    if (existing) {
+      return existing;
     }
 
     const conversationID = this.generateEscalationConversationID(adminUID);

@@ -62,6 +62,7 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
     { icon: <Users size={20} />, text: "Admin", path: "/admin/users", active: location.pathname.startsWith("/admin/users") },
   ];
   const displayClaim = claimRoleLabel.replace(/^Claim:\s*/i, "");
+  const isChatRoute = location.pathname.startsWith("/chat");
 
   const drawerOpen = isLargeScreen || isOpen;
 
@@ -114,7 +115,11 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
         </nav>
         
         {/* Page content - scrollable */}
-        <main className="flex-1 p-3 sm:p-4 bg-base-200 overflow-y-auto overflow-x-hidden">
+        <main
+          className={`flex-1 bg-base-200 overflow-x-hidden min-h-0 ${
+            isChatRoute ? "overflow-hidden p-0 sm:p-0" : "overflow-y-auto p-3 sm:p-4"
+          }`}
+        >
           {permissionNotice && (
             <div className="alert alert-warning mb-4">
               <span>{permissionNotice}</span>

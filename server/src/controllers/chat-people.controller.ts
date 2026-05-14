@@ -53,19 +53,11 @@ export async function listChatPeople(req: Request, res: Response): Promise<void>
     let people: Person[] = [];
 
     if (!isAdmin && !isSuperAdmin) {
-      // Student: can only see admins/superAdmins
-      people = await UserRepository.listByRole("admin", 50);
+      // Student: can only see regular admins (no superAdmins).
+      const admins = await UserRepository.listByRole("admin", 50);
+      people = admins.filter((a) => !a.isSuperAdmin);
     } else if (!isSuperAdmin) {
-      // Admin: students + superAdmins (admins with isSuperAdmin flag)
-      const [students, superAdmins] = await Promise.all([
-        UserRepository.listByRole("student", 50),
-        UserRepository.listSuperAdmins(50),
-      ]);
-      const byUid = new Map<string, Person>();
-      for (const u of [...students, ...superAdmins]) byUid.set(u.uid, u);
-      people = Array.from(byUid.values());
-    } else {
-      // SuperAdmin: admins + students
+      // Admin: students + all admins (including superAdmins). Admin↔admin is allowed.
       const [students, admins] = await Promise.all([
         UserRepository.listByRole("student", 50),
         UserRepository.listByRole("admin", 50),
@@ -73,6 +65,9 @@ export async function listChatPeople(req: Request, res: Response): Promise<void>
       const byUid = new Map<string, Person>();
       for (const u of [...students, ...admins]) byUid.set(u.uid, u);
       people = Array.from(byUid.values());
+    } else {
+      // SuperAdmin: admins only (no students).
+      people = await UserRepository.listByRole("admin", 50);
     }
 
     // Optional explicit role filter (post-filter to avoid complex Firestore queries)
@@ -106,4 +101,3 @@ export async function listChatPeople(req: Request, res: Response): Promise<void>
     res.status(500).json({ error: "Failed to list people" });
   }
 }
-

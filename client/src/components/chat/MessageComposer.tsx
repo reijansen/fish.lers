@@ -44,11 +44,11 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   };
 
   return (
-    <div className="border-t border-base-300 p-4 bg-base-100">
-      <div className="flex gap-2">
+    <div className="input-fixed p-2 sm:p-4 bg-base-100">
+      <div className="flex gap-2 items-end">
         <textarea
-          className="textarea textarea-bordered flex-1"
-          placeholder="Type a message... (Shift+Enter for new line)"
+          className="textarea textarea-bordered textarea-xs sm:textarea-sm flex-1 resize-none"
+          placeholder="Message..."
           value={messageInput}
           onChange={(e) => {
             setMessageInput(e.target.value);
@@ -56,22 +56,19 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
           }}
           onKeyPress={handleKeyPress}
           disabled={disabled || isLoading}
-          rows={3}
+          rows={1}
         />
         <button
-          className="btn btn-primary"
+          className="btn btn-primary btn-xs sm:btn-sm h-10"
           onClick={handleSend}
           disabled={
             disabled || isLoading || isSendingMessage || !messageInput.trim()
           }
         >
           {isLoading || isSendingMessage ? (
-            <>
-              <span className="loading loading-spinner loading-sm"></span>
-              Send
-            </>
+            <span className="loading loading-spinner loading-xs"></span>
           ) : (
-            'Send'
+            <span className="hidden sm:inline">Send</span>
           )}
         </button>
       </div>

@@ -8,7 +8,7 @@
 /**
  * Conversation Types
  */
-export type ConversationType = "support" | "escalation";
+export type ConversationType = "support" | "escalation" | "staff";
 
 /**
  * Conversation Status
@@ -16,10 +16,11 @@ export type ConversationType = "support" | "escalation";
 export type ConversationStatus = "active" | "closed";
 
 /**
- * A conversation (support or escalation).
+ * A conversation (support, escalation, or staff).
  * 
  * Support: `support:<studentUID>` - One per student, permanent until deleted
  * Escalation: `escalation:<adminUID>:<escalationID>` - Multiple per admin
+ * Staff: `staff:admins` - Single group chat for admins + superAdmins
  */
 export interface Conversation {
   conversationID: string;
@@ -33,6 +34,9 @@ export interface Conversation {
   adminUID?: string;
   escalationID?: string;
   escalationReason?: string;
+
+  // For staff group chat
+  staffKey?: "admins";
   
   // Participants
   participants: string[]; // Array of user UIDs
@@ -41,6 +45,8 @@ export interface Conversation {
   messageCount: number;
   lastMessageAt: string; // ISO timestamp
   lastMessagePreview?: string;
+  lastMessageSenderUID?: string;
+  lastMessageSenderRole?: "student" | "admin" | "superAdmin";
   closedAt?: string; // ISO timestamp
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
@@ -52,7 +58,7 @@ export interface Conversation {
 export type ConversationUpdateInput = Partial<
   Pick<
     Conversation,
-    "status" | "escalationReason" | "participants" | "messageCount" | "lastMessageAt" | "lastMessagePreview" | "adminUID"
+    "status" | "escalationReason" | "participants" | "messageCount" | "lastMessageAt" | "lastMessagePreview" | "lastMessageSenderUID" | "lastMessageSenderRole" | "adminUID"
   >
 >;
 

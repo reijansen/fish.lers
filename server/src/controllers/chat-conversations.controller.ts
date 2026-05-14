@@ -34,7 +34,8 @@ export async function ensureStudentSupportConversation(req: Request, res: Respon
       res.status(401).json({ error: "Not authenticated" });
       return;
     }
-    if (!req.user.admin) {
+    // Support threads are student↔admin only (superAdmins should not chat with students here).
+    if (!req.user.admin || req.user.superAdmin) {
       res.status(403).json({ error: "Admin access required" });
       return;
     }
@@ -46,7 +47,17 @@ export async function ensureStudentSupportConversation(req: Request, res: Respon
     }
 
     const conversation = await ChatDataService.getOrCreateSupportConversation(studentUID);
-    res.status(200).json({ conversation });
+    
+    // Add the admin to participants so they see the conversation in their inbox
+    const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
+    const nextParticipants = Array.from(new Set([...participants, req.user.uid]));
+
+    await ChatRepository.updateConversation(conversation.conversationID, {
+      participants: nextParticipants,
+    });
+
+    const updated = await ChatRepository.getConversation(conversation.conversationID);
+    res.status(200).json({ conversation: updated || conversation });
   } catch (error: any) {
     console.error("[API] ensureStudentSupportConversation:", error?.message || error);
     res.status(500).json({ error: "Failed to ensure support conversation" });

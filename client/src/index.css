@@ -108,3 +108,30 @@ html[data-theme="night"], :root[data-theme="night"] {
   --pf: 94 53 160 !important; /* primary-focus: darker purple */
   --pc: 255 255 255 !important; /* primary-content: white */
 }
+
+/* Chat scrollbar styling */
+.chat-scrollbar {
+	scrollbar-width: thin;
+	scrollbar-color: hsl(var(--b3)) transparent;
+	scrollbar-gutter: stable;
+	overscroll-behavior: contain;
+}
+
+.chat-scrollbar::-webkit-scrollbar {
+	width: 8px;
+}
+
+.chat-scrollbar::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb {
+	background-color: hsl(var(--b3));
+	border-radius: 4px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+	background-color: hsl(var(--b2));
+}

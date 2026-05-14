@@ -35,6 +35,7 @@ export async function canUserAccessConversation(
     if (parsed.type === "escalation" && user.uid === parsed.adminUID) return true;
     // SuperAdmins are allowed to access escalations even if conversation isn't loaded yet.
     if (parsed.type === "escalation" && user.superAdmin) return true;
+    if (parsed.type === "staff" && (user.admin || user.superAdmin)) return true;
     return false;
   }
 
@@ -45,10 +46,15 @@ export async function canUserAccessConversation(
       return true;
     }
 
+    // SuperAdmins cannot access student support threads.
+    if (user.superAdmin) {
+      return false;
+    }
+
     // Admin/SuperAdmin: privacy-by-default, but allow a single admin to "claim" a support thread.
     // - If adminUID is unset: allow admin/superAdmin to join (claim happens on join)
     // - If adminUID is set: only that admin (or explicit participant) can access
-    if (user.admin || user.superAdmin) {
+    if (user.admin) {
       const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
       if (!conversation.adminUID) return true;
       if (conversation.adminUID === user.uid) return true;
@@ -69,6 +75,11 @@ export async function canUserAccessConversation(
       return true;
     }
     return Array.isArray(conversation.participants) && conversation.participants.includes(user.uid);
+  }
+
+  // Staff group conversation
+  if (parsed.type === "staff") {
+    return user.admin || user.superAdmin;
   }
 
   return false;

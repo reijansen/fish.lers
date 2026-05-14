@@ -247,6 +247,24 @@ export function sendInboxNotifications(
         console.log(`[Inbox] Notified admin ${parsed.adminUID} of superAdmin reply`);
       }
     }
+
+    // ====================================================================
+    // Staff Group Conversation (admins + superAdmins)
+    // ====================================================================
+    if (parsed.type === "staff") {
+      io.to(ROOM_PREFIXES.ROLE_ADMINS).emit("inbox:notify", {
+        conversationID,
+        type: "staff_message",
+        adminUID: sender.uid,
+        message: `New message in staff chat`,
+      });
+      io.to(ROOM_PREFIXES.ROLE_SUPERADMINS).emit("inbox:notify", {
+        conversationID,
+        type: "staff_message",
+        adminUID: sender.uid,
+        message: `New message in staff chat`,
+      });
+    }
   } catch (error: any) {
     console.error(`[Inbox] Error sending notifications:`, error.message);
   }

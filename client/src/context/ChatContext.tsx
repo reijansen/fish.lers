@@ -26,16 +26,19 @@ export interface ChatMessage {
 
 export interface Conversation {
   conversationID: string;
-  type: 'support' | 'escalation';
+  type: 'support' | 'escalation' | 'staff';
   status: 'active' | 'closed';
   studentUID?: string;
   adminUID?: string;
   escalationID?: string;
   escalationReason?: string;
+  staffKey?: 'admins';
   participants: string[];
   messageCount: number;
   lastMessageAt: string;
   lastMessagePreview?: string;
+  lastMessageSenderUID?: string;
+  lastMessageSenderRole?: 'student' | 'admin' | 'superAdmin';
   unreadCount?: number;
   createdAt: string;
   updatedAt: string;
@@ -43,7 +46,7 @@ export interface Conversation {
 
 export interface InboxNotification {
   conversationID: string;
-  type: 'student_message' | 'admin_reply' | 'escalation_created' | 'superadmin_reply';
+  type: 'student_message' | 'admin_reply' | 'escalation_created' | 'superadmin_reply' | 'staff_message';
   studentUID?: string;
   adminUID?: string;
   superAdminUID?: string;
@@ -167,6 +170,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             ? 'admin'
             : 'student';
           setUserRole(role);
+
+          // Ensure we can label the current user in the UI (server people list excludes "self").
+          setPeopleByUID((prev) => ({
+            ...prev,
+            [user.uid]: {
+              uid: user.uid,
+              displayName: user.displayName || undefined,
+              email: user.email || "",
+              role: role === "student" ? "student" : "admin",
+              isSuperAdmin: role === "superAdmin",
+            },
+          }));
 
           // Connect Socket.io
           if (!socketRef.current) {
@@ -381,7 +396,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Phase 5: mark as read up to newest message in loaded page.
-        const newest = (data.items || [])[0] as ChatMessage | undefined;
+        // API returns items in chronological order (oldest first).
+        const items = Array.isArray(data.items) ? (data.items as ChatMessage[]) : [];
+        const newest = items.length ? items[items.length - 1] : undefined;
         if (newest?.messageID) {
           socketRef.current?.emit('message:read', {
             conversationID,
@@ -446,6 +463,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       if (!response.ok) throw new Error('Failed to load conversations');
 
       const data = await response.json();
+      console.log('[Chat] loadConversations response:', data);
       setConversations(data.conversations || []);
       if (data.unreadCounts && typeof data.unreadCounts === 'object') {
         setUnreadCounts(data.unreadCounts);

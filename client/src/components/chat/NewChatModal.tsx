@@ -40,7 +40,13 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({ open, onClose, onSta
         });
         if (!res.ok) throw new Error("Failed to load people");
         const data = await res.json();
-        setPeople(Array.isArray(data.people) ? data.people : []);
+        
+        // Deduplicate by uid to avoid React key warnings
+        const peopleArray: ChatPerson[] = Array.isArray(data.people) ? data.people : [];
+        const deduped = Array.from(
+          new Map<string, ChatPerson>(peopleArray.map((p) => [p.uid, p])).values()
+        );
+        setPeople(deduped);
       } catch (e: any) {
         setError(e?.message || "Failed to load people");
       } finally {
@@ -105,7 +111,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({ open, onClose, onSta
             onChange={(e) => setSelectedUid(e.target.value)}
             disabled={isLoading}
           >
-            <option value="" disabled>
+            <option key="placeholder" value="" disabled>
               {isLoading ? "Loading..." : "Choose a person"}
             </option>
             {people.map((p) => (
@@ -143,4 +149,3 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({ open, onClose, onSta
     </dialog>
   );
 };
-
