@@ -1077,7 +1077,11 @@ const AdminDashboard: React.FC = () => {
               <div className="text-center py-8 text-base-content/60">No requests found</div>
             ) : (
               <>
-                {(isMobileListExpanded ? visible : visible.slice(0, MOBILE_CARD_BATCH)).map((req) => (
+                {(isMobileListExpanded ? visible : visible.slice(0, MOBILE_CARD_BATCH)).map((req) => {
+                  const itemsList = (req.items || [])
+                    .map((it) => `${equipmentLookup[it.equipmentID || '']?.name || it.equipmentID || 'Unknown'}: ${it.qty || 0}`)
+                    .join(', ');
+                  return (
                   <div
                     key={req.id}
                     id={`request-row-${req.id}`}
@@ -1103,9 +1107,15 @@ const AdminDashboard: React.FC = () => {
                         >
                           {req.createdByName || req.createdBy || req.id}
                         </p>
-                        <p className="mt-0.5 text-sm font-medium leading-tight text-base-content/80 truncate" title={req.purpose}>
-                          {req.purpose || "No purpose"}
-                        </p>
+                        {itemsList ? (
+                          <p className="mt-0.5 text-sm font-medium leading-tight text-base-content/80 truncate tooltip" data-tip={itemsList}>
+                            {req.purpose || "No purpose"}
+                          </p>
+                        ) : (
+                          <p className="mt-0.5 text-sm font-medium leading-tight text-base-content/80 truncate">
+                            {req.purpose || "No purpose"}
+                          </p>
+                        )}
                       </div>
                       <span className={`badge badge-sm ${getRequestStatusBadgeClass(req.status)}`}>
                         {req.status || "Pending"}
@@ -1136,7 +1146,8 @@ const AdminDashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {!isMobileListExpanded && visible.length > MOBILE_CARD_BATCH && (
                   <button
                     type="button"
@@ -1182,7 +1193,11 @@ const AdminDashboard: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  visible.map((req) => (
+                  visible.map((req) => {
+                    const itemsList = (req.items || [])
+                      .map((it) => `${equipmentLookup[it.equipmentID || '']?.name || it.equipmentID || 'Unknown'}: ${it.qty || 0}`)
+                      .join(', ');
+                    return (
                     <tr
                       key={req.id}
                       id={`request-row-${req.id}`}
@@ -1190,13 +1205,21 @@ const AdminDashboard: React.FC = () => {
                     >
                       <td className="max-w-0">
                         <div
-                          className="max-w-[14rem] truncate"
+                          className="max-w-56 truncate"
                           title={req.createdByName || req.createdBy || req.id}
                         >
                           {req.createdByName || req.createdBy || req.id}
                         </div>
                       </td>
-                      <td className="max-w-xs truncate">{req.purpose}</td>
+                      <td className="max-w-xs">
+                        {itemsList ? (
+                          <div className="tooltip" data-tip={itemsList}>
+                            <div className="truncate">{req.purpose}</div>
+                          </div>
+                        ) : (
+                          <div className="truncate">{req.purpose}</div>
+                        )}
+                      </td>
                       <td>
                         <div className="min-w-0 leading-tight">
                           <p className="text-sm font-medium truncate">{formatUsageDate(req.startDate)}</p>
@@ -1219,8 +1242,9 @@ const AdminDashboard: React.FC = () => {
                         </button>
                       </td>
                     </tr>
-                  ))
-                )}
+                  );
+                })
+              )}
               </tbody>
             </table>
           </div>
@@ -1246,7 +1270,7 @@ const AdminDashboard: React.FC = () => {
             <h3 className="text-lg font-semibold pr-10">Request Details</h3>
             <div className="space-y-1 mt-2">
               <p className="text-xs uppercase tracking-wide text-base-content/60">Purpose</p>
-              <p className="text-2xl font-bold break-words">{viewRequest.purpose || "Untitled Request"}</p>
+              <p className="text-2xl font-bold wrap-break-word">{viewRequest.purpose || "Untitled Request"}</p>
               <p className="text-sm text-base-content/70">
                 {viewRequest.createdByName || viewRequest.createdBy || "Unknown"} •{" "}
                 {(function formatTs(ts: any){

@@ -628,6 +628,9 @@ const AdminRequestHistory: React.FC = () => {
                           const requester = getRequester(req);
                           const itemCount =
                             req.items?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
+                          const itemsList = (req.items || [])
+                            .map((it) => `${equipmentList.find((eq) => eq.equipmentID === it.equipmentID)?.name || it.equipmentID || 'Unknown'}: ${it.qty || 0}`)
+                            .join(', ');
                           const submittedOn = req.createdAt
                             ? req.createdAt.toLocaleString()
                             : req.createdAtClient || "—";
@@ -661,10 +664,19 @@ const AdminRequestHistory: React.FC = () => {
                                 </div>
                               </td>
                               <td>
-                                <div className="flex items-center gap-2">
-                                  <Package className="w-4 h-4" />
-                                  {itemCount} items
-                                </div>
+                                {itemsList ? (
+                                  <div className="tooltip" data-tip={itemsList}>
+                                    <div className="flex items-center gap-2">
+                                      <Package className="w-4 h-4" />
+                                      {itemCount} items
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Package className="w-4 h-4" />
+                                    {itemCount} items
+                                  </div>
+                                )}
                               </td>
                               <td>
                                 <div className="flex flex-wrap items-center gap-2">
