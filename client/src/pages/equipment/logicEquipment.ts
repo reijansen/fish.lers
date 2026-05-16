@@ -47,7 +47,8 @@ export function logicEquipment() {
     if (!isBackground) setIsLoading(true);
 
     try {
-      const items = await equipmentApi.listEquipment();
+      const includeArchived = true; // always fetch full dataset for table
+      const items = await equipmentApi.listEquipment(includeArchived);
 
       // Only update state if this is still the most recent request
       if (fetchId === lastFetchId.current) {
