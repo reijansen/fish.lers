@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Equipment, AvailableEquipmentItem } from "../../db";
 import * as equipmentApi from "../../api/equipment.api";
-
+import { useToast } from "../../components/toastContext";
 /**
  * REPLACEMENT for logicEquipment hook.
  *
@@ -15,6 +15,7 @@ export function logicEquipment() {
   const [equipmentList, setEquipmentList] = useState<Equipment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { showToast  } = useToast();
 
   // Ref to track the latest request to prevent race conditions
   const lastFetchId = useRef(0);
@@ -97,6 +98,7 @@ export function logicEquipment() {
   const handleAdd = async (equipment: Omit<Equipment, "equipmentID">) => {
     try {
       await equipmentApi.createEquipment(equipment);
+      showToast("Equipment added successfully", "success");
       // Refetch to get the new item in the list
       await fetchEquipment(true, true);
     } catch (err: any) {
@@ -116,6 +118,7 @@ export function logicEquipment() {
   ) => {
     try {
       await equipmentApi.updateEquipment(equipmentID, info);
+      showToast("Equipment updated successfully", "success");
       // Refetch to get the updated item
       await fetchEquipment(true, true);
     } catch (err: any) {
@@ -132,6 +135,7 @@ export function logicEquipment() {
   const handleDelete = async (equipmentID: string) => {
     try {
       await equipmentApi.deleteEquipment(equipmentID);
+      showToast("Equipment deleted successfully", "success");
       // Refetch to remove from list
       await fetchEquipment(true, true);
     } catch (err: any) {
@@ -149,6 +153,7 @@ export function logicEquipment() {
     if (!item.equipmentID) return;
     try {
       await equipmentApi.deleteEquipment(item.equipmentID);
+      showToast("Equipment purged successfully", "success");
       // Refetch to remove from list
       await fetchEquipment(true, true);
     } catch (err: any) {
@@ -165,6 +170,7 @@ export function logicEquipment() {
   const handleArchive = async (equipmentID: string) => {
     try {
       await equipmentApi.archiveEquipment(equipmentID);
+      showToast("Equipment archived successfully", "success");
       // Refetch to remove from active list
       await fetchEquipment(true, true);
     } catch (err: any) {
@@ -181,6 +187,7 @@ export function logicEquipment() {
   const handleRestore = async (equipmentID: string) => {
     try {
       await equipmentApi.restoreEquipment(equipmentID);
+      showToast("Equipment restored successfully", "success");
       // Refetch to add back to active list
       await fetchEquipment(true, true);
     } catch (err: any) {
