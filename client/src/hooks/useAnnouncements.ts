@@ -21,7 +21,6 @@ export function useAnnouncements() {
     // Query active and approved announcements visible to this user
     const q = query(
       collection(db, 'announcements'),
-      where('active', '==', true),
       where('status', '==', 'approved'),
       where('visibleTo', 'array-contains', userRole)
     );

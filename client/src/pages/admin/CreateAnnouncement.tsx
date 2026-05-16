@@ -107,7 +107,7 @@ export default function CreateAnnouncement() {
       <LoadingOverlay show={submitting} message="Creating announcement..." />
       <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ">
           <div>
             <h1 className="text-2xl font-bold">Create Announcement</h1>
             <p className="text-base-content/70">
@@ -181,7 +181,7 @@ export default function CreateAnnouncement() {
           {/* Active Toggle */}
           <div className="form-control mt-4">
             <label className="label cursor-pointer">
-              <span className="label-text font-medium">Active (Show in banner)</span>
+              <span className="label-text font-medium">Active</span>
 
               <input
                 type="checkbox"
@@ -192,7 +192,7 @@ export default function CreateAnnouncement() {
             </label>
 
             <p className="text-xs text-base-content/60 mt-1">
-              If disabled, announcement will not appear in banners but stays in system.
+              Active announcements will take priority when announcements are displayed in banner.
             </p>
           </div>
 

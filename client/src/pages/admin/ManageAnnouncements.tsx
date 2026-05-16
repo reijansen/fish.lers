@@ -5,10 +5,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { useAnnouncementManagement } from '../../hooks/useAnnouncementManagement';
 import LoadingOverlay from '../../components/LoadingOverlay';
 import { Announcement } from '../../db';
+import { deleteField } from 'firebase/firestore';
 
 export default function ManageAnnouncements() {
   const { isSuperAdmin } = useAuth();
-  const { announcements, loading, approveAnnouncement, rejectAnnouncement, archiveAnnouncement, restoreAnnouncement, updateAnnouncement } = useAnnouncementManagement();
+  const { announcements, loading, approveAnnouncement, rejectAnnouncement, archiveAnnouncement, restoreAnnouncement, updateAnnouncement, deleteAnnouncementPermanently } = useAnnouncementManagement();
   const sortedAnnouncements = [...announcements].sort((a, b) => {
     const aTime = a.submittedAt ? Date.parse(a.submittedAt as any) : 0;
     const bTime = b.submittedAt ? Date.parse(b.submittedAt as any) : 0;
@@ -103,29 +104,42 @@ export default function ManageAnnouncements() {
     }
   };
 
-  const activeAnnouncements = sortedAnnouncements.filter(
-    (a) => !a.archivedAt && a.active !== false
+  const isArchived = (a: Announcement) => a.archivedAt != null;
+  const isActive = (a: Announcement) => a.active !== false;
+
+  const baseAnnouncements = sortedAnnouncements.filter(a => !isArchived(a));
+  
+  const activeAnnouncements = baseAnnouncements.filter(isActive);
+
+
+  const inactiveAnnouncements = baseAnnouncements.filter(a => a.active === false);
+
+  const pendingAnnouncements = baseAnnouncements.filter(
+    (a) => a.status === 'pending'
   );
-  const inactiveAnnouncements = sortedAnnouncements.filter(
-    (a) => a.active === false && !a.archivedAt
+
+  const approvedAnnouncements = baseAnnouncements.filter(
+    (a) => a.status === 'approved'
   );
-  const allAnnouncements = sortedAnnouncements;
-  const pendingAnnouncements = activeAnnouncements.filter((a) => a.status === 'pending');
-  const approvedAnnouncements = activeAnnouncements.filter((a) => a.status === 'approved');
-  const rejectedAnnouncements = activeAnnouncements.filter((a) => a.status === 'rejected');
-  const now = Date.now();
+
+  const rejectedAnnouncements = baseAnnouncements.filter(
+    (a) => a.status === 'rejected'
+  );
+
+  const archivedAnnouncements = sortedAnnouncements.filter(
+    (a) => a.archivedAt != null
+  );
+
   const activeOngoingAnnouncements = approvedAnnouncements
-    .filter((a) => a.active !== false)
-    .filter((a) => !a.archivedAt)
-    .filter((a) => {
+    .filter(isActive)
+    .filter(a => {
       const now = Date.now();
       const start = a.startDate ? Date.parse(a.startDate) : -Infinity;
       const end = a.endDate ? Date.parse(a.endDate) : Infinity;
       return start <= now && now <= end;
     });
-  const archivedAnnouncements = announcements.filter(
-    (a) => !!a.archivedAt
-  );
+  
+    const now = Date.now();
 
   return (
     <>
@@ -166,12 +180,12 @@ export default function ManageAnnouncements() {
         <div className="tabs tabs-lifted">
           <input type="radio" name="announcement-tabs" className="tab" aria-label="All" />
           <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
-            <h3 className="text-lg font-semibold mb-4">All ({allAnnouncements.length})</h3>
-            {allAnnouncements.length === 0 ? (
+            <h3 className="text-lg font-semibold mb-4">All ({baseAnnouncements.length})</h3>
+            {baseAnnouncements.length === 0 ? (
               <div className="text-center py-8 text-base-content/60">No announcements</div>
             ) : (
               <div className="space-y-4">
-                {allAnnouncements.map((announcement) => (
+                {baseAnnouncements.map((announcement) => (
                   <div key={announcement.announcementID} className="card bg-base-200">
                     <div className="card-body">
                       <div className="flex items-start justify-between">
@@ -199,6 +213,8 @@ export default function ManageAnnouncements() {
                               className="toggle toggle-sm toggle-success"
                               checked={announcement.active !== false}
                               onChange={async (e) => {
+                                if (announcement.archivedAt) return;
+
                                 await updateAnnouncement(announcement.announcementID!, {
                                   active: e.target.checked
                                 });
@@ -527,6 +543,19 @@ export default function ManageAnnouncements() {
                           <button className="btn btn-primary btn-sm" onClick={() => restoreAnnouncement(announcement.announcementID!)}>
                             Restore
                           </button>
+                          
+                          {/* permanent delete for debugging only */}
+                          <button
+                            className="btn btn-error btn-sm"
+                            onClick={() => {
+                              if (confirm("Permanently delete this announcement? This cannot be undone.")) {
+                                deleteAnnouncementPermanently(announcement.announcementID!);
+                              }
+                            }}
+                          >
+                            Delete Permanently
+                          </button>
+
                         </div>
                       </div>
                     </div>

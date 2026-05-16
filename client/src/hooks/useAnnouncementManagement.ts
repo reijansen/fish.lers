@@ -4,6 +4,7 @@ import { db } from '../firebase';
 import { Announcement } from '../db';
 import { useAuth } from './useAuth';
 import { deleteField } from 'firebase/firestore';
+import { deleteDoc } from 'firebase/firestore';
 
 export function useAnnouncementManagement() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
@@ -23,10 +24,17 @@ export function useAnnouncementManagement() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map((doc) => ({
-        announcementID: doc.id,
-        ...doc.data(),
-      } as Announcement));
+      const list = snapshot.docs.map((doc) => {
+        const data = doc.data();
+
+        return {
+          announcementID: doc.id,
+          ...data,
+
+          // 🔥 NORMALIZATION (CRITICAL FIX)
+          active: data.active ?? true,
+        } as Announcement;
+      });
 
       setAnnouncements(list);
       setLoading(false);
@@ -101,11 +109,18 @@ export function useAnnouncementManagement() {
 
     await updateDoc(doc(db, 'announcements', announcementId), {
       active: true,
-      archivedAt: null,
-      archivedBy: null,
       restoredAt: serverTimestamp(),
       restoredBy: user.uid,
+
+      archivedAt: deleteField(),
+      archivedBy: deleteField(),
     });
+  };
+
+  const deleteAnnouncementPermanently = async (announcementId: string) => {
+    if (!user || !isSuperAdmin) throw new Error('Unauthorized');
+
+    await deleteDoc(doc(db, 'announcements', announcementId));
   };
 
   return {
@@ -117,5 +132,6 @@ export function useAnnouncementManagement() {
     updateAnnouncement,
     archiveAnnouncement,
     restoreAnnouncement,
+    deleteAnnouncementPermanently, 
   };
 }
