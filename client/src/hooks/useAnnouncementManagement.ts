@@ -3,6 +3,7 @@ import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverT
 import { db } from '../firebase';
 import { Announcement } from '../db';
 import { useAuth } from './useAuth';
+import { deleteField } from 'firebase/firestore';
 
 export function useAnnouncementManagement() {
   const { user, isAdmin, isSuperAdmin } = useAuth();
@@ -39,7 +40,11 @@ export function useAnnouncementManagement() {
 
     const newAnnouncement: Omit<Announcement, 'announcementID'> = {
       ...announcementData,
+
       status: isSuperAdmin ? 'approved' : 'pending',
+
+      active: announcementData.active ?? true,
+
       submittedBy: user.uid,
       submittedAt: new Date().toISOString(),
     };
@@ -69,7 +74,10 @@ export function useAnnouncementManagement() {
     });
   };
 
-  const updateAnnouncement = async (announcementId: string, updates: Partial<Announcement>) => {
+  const updateAnnouncement = async (
+    announcementId: string,
+    updates: Partial<Announcement>
+  ) => {
     if (!user) throw new Error('User not authenticated');
 
     await updateDoc(doc(db, 'announcements', announcementId), {
@@ -78,13 +86,25 @@ export function useAnnouncementManagement() {
     });
   };
 
-  const deleteAnnouncement = async (announcementId: string) => {
+  const archiveAnnouncement = async (announcementId: string) => {
     if (!user || !isSuperAdmin) throw new Error('Unauthorized');
 
     await updateDoc(doc(db, 'announcements', announcementId), {
-      active: false,
-      deletedAt: serverTimestamp(),
-      deletedBy: user.uid,
+      archivedAt: serverTimestamp(),
+      archivedBy: user.uid,
+      active: false // optional but recommended
+    });
+  };
+
+  const restoreAnnouncement = async (announcementId: string) => {
+    if (!user || !isSuperAdmin) throw new Error('Unauthorized');
+
+    await updateDoc(doc(db, 'announcements', announcementId), {
+      active: true,
+      archivedAt: null,
+      archivedBy: null,
+      restoredAt: serverTimestamp(),
+      restoredBy: user.uid,
     });
   };
 
@@ -95,6 +115,7 @@ export function useAnnouncementManagement() {
     approveAnnouncement,
     rejectAnnouncement,
     updateAnnouncement,
-    deleteAnnouncement,
+    archiveAnnouncement,
+    restoreAnnouncement,
   };
 }

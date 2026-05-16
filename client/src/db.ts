@@ -40,17 +40,34 @@ export interface Announcement {
   title: string;
   message: string;
   type: 'info' | 'success' | 'warning' | 'error';
+
   visibleTo: ('student' | 'admin' | 'superadmin')[];
   startDate?: string;
   endDate?: string;
-  active: boolean;
+
+  active?: boolean;
+
+  archivedAt?: any | null;
+  archivedBy?: string | null;
+  
   createdAt?: string;
   createdBy?: string;
   // Approval workflow fields
   status: 'pending' | 'approved' | 'rejected';
+
   submittedBy?: string;
   submittedAt?: string;
+  
   reviewedBy?: string;
   reviewedAt?: string;
   reviewNotes?: string;
+
+  deletedAt?: any;
+  deletedBy?: string;
+
+  restoredAt?: any;
+  restoredBy?: string;
+
+  updatedAt?: any;
+
 }

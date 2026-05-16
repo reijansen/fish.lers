@@ -22,6 +22,7 @@ export default function CreateAnnouncement() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [active, setActive] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,6 +176,24 @@ export default function CreateAnnouncement() {
             <div className={`text-sm mt-1 ${getTypeColor(formData.type)}`}>
               Preview: This announcement will appear as a {formData.type} message
             </div>
+          </div>
+
+          {/* Active Toggle */}
+          <div className="form-control mt-4">
+            <label className="label cursor-pointer">
+              <span className="label-text font-medium">Active (Show in banner)</span>
+
+              <input
+                type="checkbox"
+                className="toggle toggle-success"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+              />
+            </label>
+
+            <p className="text-xs text-base-content/60 mt-1">
+              If disabled, announcement will not appear in banners but stays in system.
+            </p>
           </div>
 
           {/* Visibility */}

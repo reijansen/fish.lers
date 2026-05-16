@@ -8,14 +8,31 @@ interface AnnouncementBannerProps {
 
 const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ announcements }) => {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState(false);
 
   if (announcements.length === 0) return null;
 
-  const visibleAnnouncements = announcements.filter(
-    (a) => !dismissedIds.has(a.announcementID || '')
-  );
+  const visibleAnnouncements = announcements
+    .filter((a) => a.active !== false) // enforce toggle
+    .filter((a) => !dismissedIds.has(a.announcementID || ''))
+    .slice() // copy
+    .sort((a, b) => {
+      // New announcements get priority (submitted within 3 days)
+      const now = Date.now();
+      const aTime = a.submittedAt ? Date.parse(a.submittedAt as any) : 0;
+      const bTime = b.submittedAt ? Date.parse(b.submittedAt as any) : 0;
+      const aIsNew = now - aTime < 3 * 24 * 60 * 60 * 1000;
+      const bIsNew = now - bTime < 3 * 24 * 60 * 60 * 1000;
+      if (aIsNew && !bIsNew) return -1;
+      if (!aIsNew && bIsNew) return 1;
+      return bTime - aTime; // newest first
+    });
 
   if (visibleAnnouncements.length === 0) return null;
+
+  const MAX_VISIBLE = 3;
+  const shouldShowMore = visibleAnnouncements.length > MAX_VISIBLE;
+  const announcementsToRender = showAll ? visibleAnnouncements : visibleAnnouncements.slice(0, MAX_VISIBLE);
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -57,11 +74,14 @@ const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ announcements }
 
   return (
     <div className="space-y-2">
-      {visibleAnnouncements.map((announcement) => (
+      {announcementsToRender.map((announcement) => (
         <div
           key={announcement.announcementID}
           className={`alert ${getAlertClass(announcement.type)} flex items-start justify-between`}
         >
+          <span className={`badge ${announcement.active !== false ? 'badge-success' : 'badge-neutral'}`}>
+            {announcement.active !== false ? 'Active' : 'Inactive'}
+          </span>
           <div className="flex items-start gap-3">
             {getIcon(announcement.type)}
             <div className="flex-1">
@@ -84,6 +104,13 @@ const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ announcements }
           </button>
         </div>
       ))}
+      {shouldShowMore && (
+        <div className="mt-2">
+          <button className="btn btn-outline btn-sm" onClick={() => setShowAll((s) => !s)}>
+            {showAll ? 'Show less' : `Show more (${visibleAnnouncements.length - MAX_VISIBLE})`}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
