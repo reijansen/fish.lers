@@ -3,6 +3,7 @@ import { Plus, Trash2, Tag } from "lucide-react";
 import { collection, addDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { Category } from "../../db";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 interface CategoryDialogProps {
     categories: Category[];
@@ -24,14 +25,52 @@ export default function CategoryDialog({ categories }: CategoryDialogProps) {
         }
     };
 
-    const handleDeleteCategory = async (id: string | undefined) => {
+    const handleDeleteCategory = async (
+        id: string | undefined,
+        name: string
+    ) => {
         if (!id) return;
 
-        if (window.confirm("Are you sure?")) {
-            await deleteDoc(doc(db, "categories", id));
-        }
+        openConfirm(
+            "Delete Category",
+            `Delete "${name}" category? This cannot be undone.`,
+            async () => {
+            try {
+                await deleteDoc(doc(db, "categories", id));
+            } catch (error) {
+                console.error("Error deleting category:", error);
+            }
+            },
+            "btn-error"
+        );
     };
+    
+    // confirmation dialog state
+    const [confirmOpen, setConfirmOpen] = React.useState(false);
+    const [confirmData, setConfirmData] = React.useState<{
+        title: string;
+        message: string;
+        action: () => void;
+        confirmClass?: string;
+    } | null>(null);
 
+    // confirm dialog helper
+    const openConfirm = (
+        title: string,
+        message: string,
+        action: () => void,
+        confirmClass = "btn-primary"
+    ) => {
+        setConfirmData({
+        title,
+        message,
+        action,
+        confirmClass,
+        });
+
+        setConfirmOpen(true);
+    };
+    
     return (
         <>
             {/* The Button to open the Modal */}
@@ -70,7 +109,7 @@ export default function CategoryDialog({ categories }: CategoryDialogProps) {
                                 <span className="font-medium">{cat.name}</span>
                                 <button
                                     className="btn btn-ghost btn-xs text-error"
-                                    onClick={() => handleDeleteCategory(cat.categoryID)}
+                                    onClick={() => handleDeleteCategory(cat.categoryID, cat.name)}
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -87,6 +126,21 @@ export default function CategoryDialog({ categories }: CategoryDialogProps) {
                         </form>
                     </div>
                 </div>
+                <ConfirmDialog
+                    open={confirmOpen}
+                    title={confirmData?.title}
+                    message={confirmData?.message || ""}
+                    confirmClass={confirmData?.confirmClass}
+                    onCancel={() => {
+                        setConfirmOpen(false);
+                        setConfirmData(null);
+                    }}
+                    onConfirm={async () => {
+                        await confirmData?.action();
+                        setConfirmOpen(false);
+                        setConfirmData(null);
+                    }}
+                />
             </dialog>
         </>
     );
