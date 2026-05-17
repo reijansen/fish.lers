@@ -8,6 +8,7 @@ import type {
 import { endOfDay, resolveDate, startOfDay, toMillis } from "./dateUtils";
 import { normalizeRequestItems } from "./normalize";
 
+
 export type SeriesPoint = { key: string; label: string; value: number; startMs: number };
 export type StackedSeriesPoint = {
   key: string;
@@ -16,6 +17,27 @@ export type StackedSeriesPoint = {
   values: Record<string, number>;
   total: number;
 };
+
+export type InventoryAlert = {
+  equipmentID: string;
+  equipmentName: string;
+  inventory: number;
+  activeQty: number;
+  upcomingQty: number;
+  available: number;
+  pressurePct: number;
+  severity: "green" | "yellow" | "red";
+};
+
+export type ReservationConflict = {
+  equipmentID: string;
+  equipmentName: string;
+  date: string;
+  requestedQty: number;
+  inventory: number;
+  shortage: number;
+};
+
 
 export function buildUserLabelMap(users: AnalyticsUser[]): Record<string, string> {
   const map: Record<string, string> = {};
@@ -341,3 +363,144 @@ export function computeCancellationFlags(requests: AnalyticsRequest[]) {
   return Object.entries(byUser).sort((a, b) => b[1] - a[1]);
 }
 
+export function computeInventoryShortageAlerts(
+  requests: AnalyticsRequest[],
+  equipmentById: Record<string, AnalyticsEquipment>
+): InventoryAlert[] {
+  const activeMap: Record<string, number> = {};
+  const upcomingMap: Record<string, number> = {};
+
+  for (const r of requests) {
+    const status = normalizeStatus(r.status as any);
+    if (status === "ongoing") {
+      for (const item of normalizeRequestItems(r.items)) {
+        if (!item.equipmentID) continue;
+
+        activeMap[item.equipmentID] =
+          (activeMap[item.equipmentID] || 0) + (item.qty || 0);
+      }
+    }
+
+    if (status === "approved") {
+      for (const item of normalizeRequestItems(r.items)) {
+        if (!item.equipmentID) continue;
+
+        upcomingMap[item.equipmentID] =
+          (upcomingMap[item.equipmentID] || 0) + (item.qty || 0);
+      }
+    }
+  }
+
+  const alerts: InventoryAlert[] = [];
+
+  for (const equipmentID of Object.keys(equipmentById)) {
+    const eq = equipmentById[equipmentID];
+
+    const inventory = eq.totalInventory || 0;
+    const activeQty = activeMap[equipmentID] || 0;
+    const upcomingQty = upcomingMap[equipmentID] || 0;
+
+    const reserved = activeQty + upcomingQty;
+    const available = inventory - reserved;
+
+    const pressurePct =
+      inventory > 0
+        ? Math.round((reserved / inventory) * 100)
+        : 0;
+
+    let severity: "green" | "yellow" | "red" = "green";
+
+    if (pressurePct >= 90 || available <= 0) {
+      severity = "red";
+    } else if (pressurePct >= 70) {
+      severity = "yellow";
+    }
+
+    if (severity !== "green") {
+      alerts.push({
+        equipmentID,
+        equipmentName: eq.name,
+        inventory,
+        activeQty,
+        upcomingQty,
+        available,
+        pressurePct,
+        severity,
+      });
+    }
+  }
+
+  return alerts.sort((a, b) => b.pressurePct - a.pressurePct);
+}
+
+export function computeReservationConflicts(
+  requests: AnalyticsRequest[],
+  equipmentById: Record<string, AnalyticsEquipment>
+): ReservationConflict[] {
+  const dailyUsage: Record<
+    string,
+    Record<string, number>
+  > = {};
+
+  for (const r of requests) {
+    const status = normalizeStatus(r.status as any);
+
+    if (
+      status !== "approved" &&
+      status !== "ongoing"
+    ) {
+      continue;
+    }
+
+    const start = resolveDate(r.startDate);
+    const end = resolveDate(r.endDate);
+
+    if (!start || !end) continue;
+
+    for (
+      let d = new Date(start);
+      d <= end;
+      d.setDate(d.getDate() + 1)
+    ) {
+      const dateKey = d.toISOString().slice(0, 10);
+
+      if (!dailyUsage[dateKey]) {
+        dailyUsage[dateKey] = {};
+      }
+
+      for (const item of normalizeRequestItems(r.items)) {
+        if (!item.equipmentID) continue;
+
+        dailyUsage[dateKey][item.equipmentID] =
+          (dailyUsage[dateKey][item.equipmentID] || 0) +
+          (item.qty || 0);
+      }
+    }
+  }
+
+  const conflicts: ReservationConflict[] = [];
+
+  for (const date of Object.keys(dailyUsage)) {
+    const equipmentUsage = dailyUsage[date];
+
+    for (const equipmentID of Object.keys(equipmentUsage)) {
+      const requestedQty = equipmentUsage[equipmentID];
+      const inventory =
+        equipmentById[equipmentID]?.totalInventory || 0;
+
+      if (requestedQty > inventory) {
+        conflicts.push({
+          equipmentID,
+          equipmentName:
+            equipmentById[equipmentID]?.name || equipmentID,
+          date,
+          requestedQty,
+          inventory,
+          shortage: requestedQty - inventory,
+        });
+      }
+    }
+  }
+
+  return conflicts.sort((a, b) => b.shortage - a.shortage);
+}

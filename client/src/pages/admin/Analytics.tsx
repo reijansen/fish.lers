@@ -45,6 +45,8 @@ import {
   filterRequests,
   normalizeStatus,
   resolveRequesterLabel,
+  computeInventoryShortageAlerts,
+  computeReservationConflicts,
 } from "../../features/analytics/analyticsSelectors";
 import { normalizeRequestItems } from "../../features/analytics/normalize";
 import { buildInsights } from "../../features/analytics/analyticsInsights";
@@ -80,42 +82,42 @@ function computeAvgItemsPerRequest(requests: AnalyticsRequest[]) {
   return totalQty / requests.length;
 }
 
-function computeConflicts(requests: AnalyticsRequest[]) {
-  // Simple indicator: overlapping approved/ongoing schedules for same equipmentID.
-  // If schedule data is missing, we gracefully return 0.
-  type Reservation = { equipmentID: string; startMs: number; endMs: number; requestId: string };
-  const reservations: Reservation[] = [];
+// function computeConflicts(requests: AnalyticsRequest[]) {
+//   // Simple indicator: overlapping approved/ongoing schedules for same equipmentID.
+//   // If schedule data is missing, we gracefully return 0.
+//   type Reservation = { equipmentID: string; startMs: number; endMs: number; requestId: string };
+//   const reservations: Reservation[] = [];
 
-  for (const r of requests) {
-    const status = normalizeStatus(r.status as any);
-    if (!(status === "approved" || status === "ongoing")) continue;
-    if (!r.startDate || !r.endDate) continue;
-    const startMs = new Date(`${r.startDate}T00:00:00`).getTime();
-    const endMs = new Date(`${r.endDate}T23:59:59`).getTime();
-    if (!startMs || !endMs || Number.isNaN(startMs) || Number.isNaN(endMs)) continue;
+//   for (const r of requests) {
+//     const status = normalizeStatus(r.status as any);
+//     if (!(status === "approved" || status === "ongoing")) continue;
+//     if (!r.startDate || !r.endDate) continue;
+//     const startMs = new Date(`${r.startDate}T00:00:00`).getTime();
+//     const endMs = new Date(`${r.endDate}T23:59:59`).getTime();
+//     if (!startMs || !endMs || Number.isNaN(startMs) || Number.isNaN(endMs)) continue;
 
-    for (const it of normalizeRequestItems(r.items)) {
-      if (!it.equipmentID) continue;
-      reservations.push({ equipmentID: it.equipmentID, startMs, endMs, requestId: r.id });
-    }
-  }
+//     for (const it of normalizeRequestItems(r.items)) {
+//       if (!it.equipmentID) continue;
+//       reservations.push({ equipmentID: it.equipmentID, startMs, endMs, requestId: r.id });
+//     }
+//   }
 
-  const byEquipment: Record<string, Reservation[]> = {};
-  for (const res of reservations) {
-    (byEquipment[res.equipmentID] ||= []).push(res);
-  }
+//   const byEquipment: Record<string, Reservation[]> = {};
+//   for (const res of reservations) {
+//     (byEquipment[res.equipmentID] ||= []).push(res);
+//   }
 
-  let conflicts = 0;
-  for (const eqId of Object.keys(byEquipment)) {
-    const list = byEquipment[eqId].sort((a, b) => a.startMs - b.startMs);
-    for (let i = 1; i < list.length; i++) {
-      const prev = list[i - 1];
-      const curr = list[i];
-      if (curr.startMs <= prev.endMs) conflicts += 1;
-    }
-  }
-  return conflicts;
-}
+//   let conflicts = 0;
+//   for (const eqId of Object.keys(byEquipment)) {
+//     const list = byEquipment[eqId].sort((a, b) => a.startMs - b.startMs);
+//     for (let i = 1; i < list.length; i++) {
+//       const prev = list[i - 1];
+//       const curr = list[i];
+//       if (curr.startMs <= prev.endMs) conflicts += 1;
+//     }
+//   }
+//   return conflicts;
+// }
 
 export default function Analytics() {
   const navigate = useNavigate();
@@ -316,6 +318,9 @@ export default function Analytics() {
   const avgItemsPerRequest = React.useMemo(() => computeAvgItemsPerRequest(filteredRequests), [filteredRequests]);
   const utilization = React.useMemo(() => computeEquipmentUtilizationRate(filteredRequests, equipmentById), [filteredRequests, equipmentById]);
 
+  const inventoryAlerts = React.useMemo(() => computeInventoryShortageAlerts(filteredRequests, equipmentById), [filteredRequests, equipmentById]);
+  const reservationConflicts = React.useMemo(() => computeReservationConflicts(filteredRequests, equipmentById), [filteredRequests, equipmentById]);
+
   const requestSeries = React.useMemo(() => computeRequestsSeries(filteredRequests, granularity).slice(-18), [filteredRequests, granularity]);
   const stackedStatuses = React.useMemo(() => {
     const statuses = ["pending", "approved", "rejected", "ongoing", "returned", "cancelled"];
@@ -388,7 +393,7 @@ export default function Analytics() {
     return sorted.slice(0, 5);
   }, [filteredRequests, usersById]);
 
-  const conflicts = React.useMemo(() => computeConflicts(filteredRequests), [filteredRequests]);
+  // const conflicts = React.useMemo(() => computeConflicts(filteredRequests), [filteredRequests]);
 
   const turnaroundByAdmin = React.useMemo(() => {
     const rows: Record<string, { uid: string; count: number; totalMs: number }> = {};
@@ -876,6 +881,54 @@ export default function Analytics() {
         title="Equipment Intelligence"
         subtitle="Overuse, underuse, and category-level demand signals."
       >
+        {inventoryAlerts.length > 0 && (
+          <div className="card bg-base-100 border border-base-300 shadow-sm mb-4">
+            <div className="card-body p-4 sm:p-5 gap-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-warning" />
+                  Inventory shortage alerts
+                </h3>
+
+                <span className="badge badge-warning">
+                  {inventoryAlerts.length}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {inventoryAlerts.slice(0, 8).map((alert) => {
+                  const isSevere = alert.severity === "red"
+                  return (
+                    <div
+                      key={alert.equipmentID}
+                      className={`rounded-box border p-3 ${
+                        isSevere ? "border-error bg-error/5" : "border-warning bg-warning/10"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold">{alert.equipmentName}</div>
+
+                          <div className="text-sm text-base-content/70">
+                            Only {alert.available} remaining • {alert.upcomingQty} upcoming requests
+                          </div>
+
+                          <div className="text-xs text-base-content/60 mt-1">
+                            Inventory: {alert.inventory} • Active: {alert.activeQty} • Pressure: {alert.pressurePct}%
+                          </div>
+                        </div>
+
+                        <span className={`badge ${isSevere ? "badge-error" : "badge-warning"}`}>
+                          {alert.severity}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="card bg-base-100 border border-base-300 shadow-sm">
             <div className="card-body p-4 sm:p-5 gap-3">
@@ -987,12 +1040,12 @@ export default function Analytics() {
         </div>
       </AnalyticsSection>
 
-      <AnalyticsSection
+      {/* <AnalyticsSection
         id="users"
         title="User Behavior Insights"
         subtitle="Who’s driving demand, and what patterns matter?"
-      >
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      > */}
+        {/* <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="card bg-base-100 border border-base-300 shadow-sm">
             <div className="card-body p-4 sm:p-5 gap-3">
               <div className="flex items-center justify-between">
@@ -1057,8 +1110,8 @@ export default function Analytics() {
               )}
             </div>
           </div>
-        </div>
-      </AnalyticsSection>
+        </div> */}
+      {/* </AnalyticsSection> */}
 
       <AnalyticsSection
         id="ops"
@@ -1091,6 +1144,7 @@ export default function Analytics() {
               </button>
             </div>
           </div>
+          </div>
 
           <div className="card bg-base-100 border border-base-300 shadow-sm">
             <div className="card-body p-4 sm:p-5 gap-3">
@@ -1117,28 +1171,62 @@ export default function Analytics() {
           <div className="card bg-base-100 border border-base-300 shadow-sm">
             <div className="card-body p-4 sm:p-5 gap-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-bold">Conflict indicators</h3>
-                <span className={`badge ${conflicts > 0 ? "badge-error" : "badge-success"}`}>{conflicts}</span>
+                <h3 className="font-bold">
+                  Reservation conflicts
+                </h3>
+
+                <span
+                  className={`badge ${
+                    reservationConflicts.length > 0
+                      ? "badge-error"
+                      : "badge-success"
+                  }`}
+                >
+                  {reservationConflicts.length}
+                </span>
               </div>
-              <div className="text-sm text-base-content/70">
-                {conflicts > 0
-                  ? "Potential schedule overlaps detected for the same equipment across approved/ongoing requests."
-                  : "No overlaps detected from available schedule data."}
-              </div>
-              <div className="text-xs text-base-content/60">
-                This is a lightweight heuristic; use Request History to confirm details.
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <a className="btn btn-sm btn-outline" href="/admin/history">
+
+              {reservationConflicts.length === 0 ? (
+                <div className="text-sm text-base-content/70">
+                  No inventory conflicts detected.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {reservationConflicts
+                    .slice(0, 6)
+                    .map((c) => (
+                      <div
+                        key={`${c.equipmentID}-${c.date}`}
+                        className="rounded-box border border-error bg-error/5 p-3"
+                      >
+                        <div className="font-semibold">
+                          {c.equipmentName}
+                        </div>
+
+                        <div className="text-sm text-base-content/70">
+                          {c.requestedQty} requested
+                          • inventory {c.inventory}
+                        </div>
+
+                        <div className="text-xs text-error mt-1">
+                          Shortage of {c.shortage}
+                          on {c.date}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              <div className="flex gap-2 mt-2">
+                <a
+                  className="btn btn-sm btn-outline"
+                  href="/admin/history"
+                >
                   Open request history
-                </a>
-                <a className="btn btn-sm btn-outline" href="/admindashboard">
-                  Manage requests
                 </a>
               </div>
             </div>
           </div>
-        </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="card bg-base-100 border border-base-300 shadow-sm">
