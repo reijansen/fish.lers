@@ -1,6 +1,6 @@
 import { Equipment, Category } from "../../db";
 import React, { useState } from "react";
-import ConfirmDialog from "../../components/ConfirmDialog";
+import ConfirmDialog from "../../components/confirmDialog";
 
 interface EquipmentListProps {
   items: Equipment[];

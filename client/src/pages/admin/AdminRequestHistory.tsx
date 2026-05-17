@@ -170,7 +170,10 @@ const AdminRequestHistory: React.FC = () => {
   }, [location.search]);
 
   React.useEffect(() => {
-    const q = query(collection(db, "requests"), orderBy("createdAtClient", "desc"));
+    const q = query(
+      collection(db, "requests"),
+      orderBy("createdAt", "desc")
+    );
     const unsub = onSnapshot(
       q,
       (snapshot) => {
@@ -188,6 +191,12 @@ const AdminRequestHistory: React.FC = () => {
           } catch {
             createdAt = null;
           }
+          const requesterId =
+            data.createdBy ||
+            data.userID ||
+            data.studentId ||
+            data.studentID;
+
           return {
             id: doc.id,
             adviser: data.adviser,
@@ -200,7 +209,7 @@ const AdminRequestHistory: React.FC = () => {
             createdAt,
             createdAtClient: data.createdAtClient,
             status: data.status,
-            createdBy: data.createdBy,
+            createdBy: requesterId,
             createdByName: data.createdByName,
             declinedRemarks: data.declinedRemarks || data.remarks,
             approvedBy: data.approvedBy,
@@ -222,18 +231,26 @@ const AdminRequestHistory: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    const missing = Array.from(
-      new Set(
-        requests
-          .flatMap((req) => [
-            req.createdBy,
-            req.approvedBy,
-            req.rejectedBy,
-            req.overriddenBy,
-          ])
-          .filter((uid): uid is string => !!uid && !nameMap[uid])
-      )
-    );
+    const getRequesterId = (req: any): string | undefined =>
+    req?.createdBy ||
+    req?.userID ||
+    req?.studentId ||
+    req?.studentID ||
+    undefined;
+
+  const missing = Array.from(
+    new Set(
+      requests
+        .flatMap((req) => [
+          getRequesterId(req),
+          req.approvedBy,
+          req.rejectedBy,
+          req.overriddenBy,
+        ])
+        .filter((uid): uid is string => !!uid && !nameMap[uid])
+    )
+  );
+
     if (!missing.length) return;
 
     missing.forEach(async (uid) => {
@@ -282,12 +299,23 @@ const AdminRequestHistory: React.FC = () => {
     ).length;
     return { total, pending, approved, declined, cancelled };
   }, [requests]);
-
+  
   const getRequester = (req: AdminRequestRecord) => {
-    if (req.createdByName) return req.createdByName;
-    if (req.createdBy && nameMap[req.createdBy]) return nameMap[req.createdBy];
-    if (req.createdBy) return req.createdBy;
-    return "Unlinked requester";
+    if (
+      req.createdByName &&
+      req.createdByName.trim() !== ""
+    ) {
+      return req.createdByName;
+    }
+
+    if (
+      req.createdBy &&
+      nameMap[req.createdBy]
+    ) {
+      return nameMap[req.createdBy];
+    }
+
+    return req.createdBy || "Unknown Requester";
   };
 
   const getActorName = (uid?: string) => {
