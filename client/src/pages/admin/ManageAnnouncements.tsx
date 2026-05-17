@@ -6,6 +6,7 @@ import { useAnnouncementManagement } from '../../hooks/useAnnouncementManagement
 import LoadingOverlay from '../../components/LoadingOverlay';
 import { Announcement } from '../../db';
 import { deleteField } from 'firebase/firestore';
+import { useToast } from '../../context/toastContext';
 
 export default function ManageAnnouncements() {
   const { isSuperAdmin } = useAuth();
@@ -22,6 +23,8 @@ export default function ManageAnnouncements() {
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [processing, setProcessing] = useState(false);
+
+  const { showToast } = useToast();
 
   if (!isSuperAdmin) {
     return (
@@ -41,14 +44,24 @@ export default function ManageAnnouncements() {
     try {
       if (action === 'approve') {
         await approveAnnouncement(selectedAnnouncement.announcementID!, reviewNotes.trim() || undefined);
+
+        showToast("Announcement approved successfully!", "success");
+
+        setTimeout(() => {
+          navigate("/admin/announcements");
+        }, 300);
       } else {
         await rejectAnnouncement(selectedAnnouncement.announcementID!, reviewNotes.trim() || undefined);
+
+        showToast("Announcement rejected.", "error");
       }
       setSelectedAnnouncement(null);
       setAction(null);
       setReviewNotes('');
     } catch (error) {
       console.error('Failed to process announcement:', error);
+      
+      showToast("Failed to process announcement.", "error");
     } finally {
       setProcessing(false);
     }
@@ -60,9 +73,14 @@ export default function ManageAnnouncements() {
     setProcessing(true);
     try {
       await archiveAnnouncement(deleteTarget.announcementID!);
+
+      showToast("Announcement archived successfully!", "info");
+
       setDeleteTarget(null);
     } catch (error) {
       console.error('Failed to delete announcement:', error);
+
+      showToast("Failed to archive announcement.", "error");
     } finally {
       setProcessing(false);
     }
@@ -110,7 +128,6 @@ export default function ManageAnnouncements() {
   const baseAnnouncements = sortedAnnouncements.filter(a => !isArchived(a));
   
   const activeAnnouncements = baseAnnouncements.filter(isActive);
-
 
   const inactiveAnnouncements = baseAnnouncements.filter(a => a.active === false);
 
@@ -540,21 +557,59 @@ export default function ManageAnnouncements() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <button className="btn btn-primary btn-sm" onClick={() => restoreAnnouncement(announcement.announcementID!)}>
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={async () => {
+                              try {
+                                setProcessing(true);
+
+                                await restoreAnnouncement(announcement.announcementID!);
+
+                                showToast("Announcement restored successfully.", "success");
+                              } catch (error) {
+                                console.error("Failed to restore announcement:", error);
+
+                                showToast("Failed to restore announcement.", "error");
+                              } finally {
+                                setProcessing(false);
+                              }
+                            }}
+                          >
                             Restore
                           </button>
                           
                           {/* permanent delete for debugging only */}
-                          <button
+                          {/* <button
                             className="btn btn-error btn-sm"
-                            onClick={() => {
-                              if (confirm("Permanently delete this announcement? This cannot be undone.")) {
-                                deleteAnnouncementPermanently(announcement.announcementID!);
+                            onClick={async () => {
+                              if (
+                                confirm(
+                                  "Permanently delete this announcement? This cannot be undone."
+                                )
+                              ) {
+                                try {
+                                  await deleteAnnouncementPermanently(
+                                    announcement.announcementID!
+                                  );
+
+                                  showToast(
+                                    "Announcement permanently deleted.",
+                                    "error"
+                                  );
+
+                                } catch (error) {
+                                  console.error(error);
+
+                                  showToast(
+                                    "Failed to permanently delete announcement.",
+                                    "error"
+                                  );
+                                }
                               }
                             }}
                           >
                             Delete Permanently
-                          </button>
+                          </button> */}
 
                         </div>
                       </div>

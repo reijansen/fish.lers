@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Equipment, AvailableEquipmentItem } from "../../db";
 import * as equipmentApi from "../../api/equipment.api";
-import { useToast } from "../../components/toastContext";
+import { useToast } from "../../context/toastContext";
 /**
  * REPLACEMENT for logicEquipment hook.
  *

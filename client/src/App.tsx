@@ -22,7 +22,7 @@ import SuperAdminActivityLog from "./pages/admin/SuperAdminActivityLog";
 import PermissionsMatrix from "./pages/admin/PermissionsMatrix";
 import CreateAnnouncement from "./pages/admin/CreateAnnouncement";
 import ManageAnnouncements from "./pages/admin/ManageAnnouncements";
-import { ToastProvider } from "./components/toastContext";
+import { ToastProvider } from "./context/toastContext";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import DrawerLayout from "./components/DrawerLayout";
