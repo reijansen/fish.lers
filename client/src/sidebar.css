@@ -1,0 +1,18 @@
+/* Sidebar-specific adjustments for DaisyUI menu */
+
+/* Ensure menu items inherit proper DaisyUI styling */
+.themed-sidebar .menu a {
+  cursor: pointer;
+}
+
+/* Fix tooltip positioning for collapsed sidebar */
+.themed-sidebar .tooltip.tooltip-right::before,
+.themed-sidebar .tooltip.tooltip-right::after {
+  left: calc(100% + 0.5rem);
+}
+
+/* Ensure buttons don't have conflicting styles */
+.themed-sidebar .btn {
+  border: none;
+  box-shadow: none;
+}

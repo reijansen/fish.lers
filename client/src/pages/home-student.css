@@ -1,0 +1,116 @@
+/* Keep minimal tweaks; rely on Tailwind + DaisyUI for styling */
+.home-student .requests-card .tab {
+  cursor: pointer;
+}
+
+.home-student .requests-card table tbody tr td {
+  vertical-align: top;
+}
+
+/* Hero area above the card */
+.home-student header.hs-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-student header.hs-topbar h1 {
+  margin: 0;
+}
+
+.home-student .requests-card {
+  margin-top: 0;
+}
+/* Dark theme variables tuned to match the provided screenshot */
+.home-student {
+  --page-bg: #0b1115;        /* main page background */
+  --surface: #0f171b;        /* card / panel background */
+  --muted: rgba(255,255,255,0.78);
+  --muted-2: rgba(255,255,255,0.55);
+  --border: rgba(255,255,255,0.06);
+  --accent: #60a5fa; /* subtle blue accent for focus */
+  background-color: var(--page-bg);
+  color: var(--muted);
+}
+
+/* Requests card and table styling */
+.home-student .requests-card {
+  margin-top: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.4) inset;
+}
+
+.home-student .requests-card .tab {
+  cursor: pointer;
+}
+
+.home-student .requests-card table tbody tr td {
+  vertical-align: top;
+  color: var(--muted);
+}
+
+/* Header / hero area */
+.home-student header.hs-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent; /* keep same page tone */
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.home-student header.hs-topbar h1 {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Table container scroll area — match screenshot spacing */
+.home-student .card-body.p-0 {
+  min-height: 260px;
+}
+
+.home-student .table-scroll {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+/* Empty state and subdued text */
+.home-student .empty-state {
+  padding: 2.5rem 0;
+  color: var(--muted-2);
+}
+
+/* Inputs / buttons inside this page — subtle outlines like screenshot */
+.home-student input, .home-student textarea, .home-student select {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.home-student .btn, .home-student .btn-ghost, .home-student .btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.home-student .btn-primary {
+  background: linear-gradient(180deg, rgba(96,165,250,0.12), rgba(96,165,250,0.06));
+  border: 1px solid rgba(96,165,250,0.15);
+  color: #e6f0ff;
+}
+
+/* rows separators subtle */
+.home-student table thead th {
+  color: var(--muted-2);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.home-student table tbody tr + tr td {
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+
+/* make sure the page takes full width and no unexpected padding */
+.home-student .w-full {
+  width: 100%;
+}

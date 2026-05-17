@@ -1,0 +1,49 @@
+/* Accountabilities page theme consistent with other pages */
+.accountabilities-page{
+  --page-bg: #0b1115;
+  --surface: #0f171b;
+  --muted: rgba(255,255,255,0.78);
+  --muted-2: rgba(255,255,255,0.55);
+  --border: rgba(255,255,255,0.06);
+  background-color: var(--page-bg);
+  color: var(--muted);
+}
+
+.accountabilities-page .table thead th{
+  color: var(--muted-2);
+  background: rgba(255,255,255,0.02);
+}
+
+.accountabilities-page .table tbody td{
+  color: var(--muted);
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+
+/* Make the table look like the sketch: subtle header band */
+.accountabilities-page .table thead tr th{
+  background: rgba(200,200,200,0.08);
+  color: var(--muted-2);
+}
+
+/* Match dashboard table/card appearance */
+.accountabilities-page section{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.4) inset;
+}
+
+.accountabilities-page table thead th{
+  color: var(--muted-2);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  background: rgba(255,255,255,0.02);
+}
+
+.accountabilities-page table tbody tr + tr td{
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+
+.accountabilities-page .btn-primary{
+  background: linear-gradient(180deg, rgba(96,165,250,0.12), rgba(96,165,250,0.06));
+  border: 1px solid rgba(96,165,250,0.15);
+  color: #e6f0ff;
+}

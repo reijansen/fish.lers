@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function isSuperAdmin() {
+      return signedIn() && request.auth.token.superAdmin == true;
+    }
+
+    function roleLabel() {
+      return isSuperAdmin() ? 'superadmin' : isAdmin() ? 'admin' : 'student';
+    }
+
+    // User profile docs: owner can create/read/update/delete their own doc.
+    // Admins can list users (for admin management screens).
+    match /users/{userId} {
+      allow create, read, update, delete: if signedIn() && request.auth.uid == userId;
+      allow list: if isAdmin();
+    }
+
+    // Admin-only collection
+    match /adminData/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Public collection example
+    match /public/{docId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // Equipment inventory: any signed-in user can read.
+    match /equipment/{equipmentId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Requests: students can create/read their own; admins can read/update all.
+    match /requests/{requestId} {
+      allow create: if signedIn() && request.resource.data.userID == request.auth.uid;
+      allow read: if signedIn() && (resource.data.userID == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // Student accountabilities: student can read their own; admins manage.
+    match /accountabilities/{accountabilityId} {
+      allow read: if signedIn() && (resource.data.createdBy == request.auth.uid || isAdmin());
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Announcements: signed-in users can read approved + active announcements that include their role.
+    // Only super admins can manage announcements.
+    match /announcements/{announcementId} {
+      allow read: if signedIn()
+        && resource.data.active == true
+        && resource.data.status == 'approved'
+        && (roleLabel() in resource.data.visibleTo);
+      allow create, update, delete: if isSuperAdmin();
+    }
+  }
+}

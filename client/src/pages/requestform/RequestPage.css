@@ -1,0 +1,127 @@
+/* Request page theme to match the sidebar and student home */
+.request-page {
+  --page-bg: #0b1115;
+  --surface: #0f171b;
+  --muted: rgba(255,255,255,0.78);
+  --muted-2: rgba(255,255,255,0.55);
+  --border: rgba(255,255,255,0.06);
+  --accent: #60a5fa;
+  background-color: var(--page-bg);
+  color: var(--muted);
+}
+
+.request-page header {
+  background: transparent;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.request-page .border, .request-page .card, .request-page .rounded-md {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+
+.request-page input, .request-page textarea, .request-page select {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.request-page .btn, .request-page .btn-ghost, .request-page .btn-outline {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.request-page .btn-primary {
+  background: linear-gradient(180deg, rgba(96,165,250,0.12), rgba(96,165,250,0.06));
+  border: 1px solid rgba(96,165,250,0.15);
+  color: #e6f0ff;
+}
+
+/* small utility selectors will inherit muted color; avoid escaped tailwind class selectors here */
+
+/* Cally Calendar Styling - use CSS custom properties and ::part() selectors */
+calendar-date,
+calendar-range {
+  font-family: inherit;
+}
+
+/* Custom properties for accent colors - must be on calendar-month */
+calendar-month {
+  --color-accent: #60a5fa;
+  --color-text-on-accent: #ffffff;
+}
+
+.request-page calendar-month {
+  --color-accent: #60a5fa;
+  --color-text-on-accent: #ffffff;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+/* Style buttons via ::part() - this is on calendar-month for day buttons */
+.request-page calendar-month::part(button) {
+  color: var(--muted);
+  border-radius: 0.375rem;
+}
+
+.request-page calendar-month::part(button):hover {
+  background: rgba(96, 165, 250, 0.2);
+}
+
+/* Range highlighting - inner dates between start and end */
+.request-page calendar-month::part(range-inner) {
+  background-color: rgba(96, 165, 250, 0.3);
+  border-radius: 0;
+}
+
+/* Range start date */
+.request-page calendar-month::part(range-start) {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+/* Range end date */
+.request-page calendar-month::part(range-end) {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+/* When start and end are the same date */
+.request-page calendar-month::part(range-start range-end) {
+  border-radius: 0.375rem;
+}
+
+/* Style the prev/next buttons on calendar-range */
+.request-page calendar-range::part(button) {
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+
+.request-page calendar-range::part(button):hover {
+  background: rgba(96, 165, 250, 0.2);
+}
+
+/* Calendar header styling */
+.request-page calendar-month::part(heading) {
+  color: var(--muted);
+}
+
+/* Disabled/past dates - darken and make unclickable */
+.request-page calendar-month::part(disabled) {
+  color: rgba(255, 255, 255, 0.25);
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.request-page calendar-month::part(disabled):hover {
+  background: transparent;
+}
+
+/* Outside month dates */
+.request-page calendar-month::part(outside) {
+  color: rgba(255, 255, 255, 0.3);
+  opacity: 0.5;
+}
