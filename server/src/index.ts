@@ -1,7 +1,7 @@
 import { loadConfig } from "./config/env.js";
 import { initializeFirebase } from "./config/firebase.js";
 import { createApp, startServer } from "./app.js";
-import { connectMongoDB } from "./config/mongodb.js";
+import { connectMongoDB, isMongoConnected } from "./config/mongodb.js";
 import { startFirestoreListeners } from "./services/firestoreListerner.js";
 
 /**
@@ -24,7 +24,11 @@ async function main() {
       console.warn('⚠️  MongoDB connection skipped - using Firestore-only mode');
     }
     
-    startFirestoreListeners();
+    if (isMongoConnected()) {
+      startFirestoreListeners();
+    } else {
+      console.warn('⚠️  Skipping MongoDB backup listeners because MongoDB is unavailable');
+    }
 
     // Create and start Express app
     const app = createApp(config);

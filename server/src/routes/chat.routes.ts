@@ -18,6 +18,7 @@ import {
   createEscalationConversation,
   createEscalationConversationForAdmin,
 } from "../controllers/chat-conversations.controller.js";
+import { setConversationArchived, setConversationDeleted } from "../controllers/chat-inbox.controller.js";
 
 const router = Router();
 
@@ -32,6 +33,8 @@ router.get("/:conversationId/messages", requireAuth, getConversationMessages);
  * Get conversations for authenticated user (inbox)
  */
 router.get("/conversations", requireAuth, getUserConversations);
+router.patch("/:conversationId/archive", requireAuth, setConversationArchived);
+router.patch("/:conversationId/delete", requireAuth, setConversationDeleted);
 
 /**
  * GET /api/chat/people

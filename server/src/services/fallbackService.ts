@@ -3,6 +3,7 @@ import { UserBackup } from '../models/backup/userBackup.js';
 import { EquipmentBackup } from '../models/backup/equipmentBackup.js';
 import { RequestBackup } from '../models/backup/requestBackup.js';
 import mongoose from 'mongoose';
+import { isMongoConnected } from '../config/mongodb.js';
 
 const modelMap: Record<string, mongoose.Model<any>> = {
   users:     UserBackup,
@@ -15,6 +16,10 @@ export const getDocument = async (
   collection: string,
   docId: string
 ): Promise<Record<string, any> | null> => {
+  if (!isMongoConnected()) {
+    return null;
+  }
+
   try {
     const db  = getFirestore();
     const doc = await db.collection(collection).doc(docId).get();
@@ -32,6 +37,10 @@ export const getDocument = async (
 export const getCollection = async (
   collection: string
 ): Promise<Record<string, any>[]> => {
+  if (!isMongoConnected()) {
+    return [];
+  }
+
   try {
     const db       = getFirestore();
     const snapshot = await db.collection(collection).get();

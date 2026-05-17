@@ -40,6 +40,10 @@ export interface Conversation {
   
   // Participants
   participants: string[]; // Array of user UIDs
+
+  // Per-user inbox state
+  archivedFor?: string[]; // UIDs who archived this conversation
+  deletedFor?: string[]; // UIDs who deleted/hid this conversation
   
   // Metadata
   messageCount: number;
@@ -58,7 +62,7 @@ export interface Conversation {
 export type ConversationUpdateInput = Partial<
   Pick<
     Conversation,
-    "status" | "escalationReason" | "participants" | "messageCount" | "lastMessageAt" | "lastMessagePreview" | "lastMessageSenderUID" | "lastMessageSenderRole" | "adminUID"
+    "status" | "escalationReason" | "participants" | "messageCount" | "lastMessageAt" | "lastMessagePreview" | "lastMessageSenderUID" | "lastMessageSenderRole" | "adminUID" | "archivedFor" | "deletedFor"
   >
 >;
 

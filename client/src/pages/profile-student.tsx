@@ -201,17 +201,17 @@ export default function ProfileStudent() {
             {/* Account Information */}
             <div className="card bg-base-200 shadow-xl">
               <div className="card-body">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <h3 className="card-title text-lg">Account Information</h3>
                   {!editing ? (
-                    <button className="btn btn-primary btn-sm gap-2" onClick={() => setEditing(true)}>
+                    <button className="btn btn-primary btn-sm gap-2 w-full sm:w-auto" onClick={() => setEditing(true)}>
                       <Edit className="w-4 h-4" />
                       Edit
                     </button>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <button 
-                        className="btn btn-ghost btn-sm gap-2" 
+                        className="btn btn-ghost btn-sm gap-2 w-full sm:w-auto" 
                         onClick={() => { 
                           setEditing(false); 
                           setDisplayName(profile?.displayName || user.displayName || ''); 
@@ -221,7 +221,7 @@ export default function ProfileStudent() {
                         <X className="w-4 h-4" />
                         Cancel
                       </button>
-                      <button className="btn btn-primary btn-sm gap-2" onClick={save}>
+                      <button className="btn btn-primary btn-sm gap-2 w-full sm:w-auto" onClick={save}>
                         <Save className="w-4 h-4" />
                         Save
                       </button>
@@ -303,17 +303,17 @@ export default function ProfileStudent() {
                   <Mail className="w-5 h-5" />
                   Email Address
                 </h3>
-                <div className="flex items-center gap-4 p-4 bg-base-300 rounded-lg mt-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 bg-base-300 rounded-lg mt-2">
                   <div className="avatar placeholder">
                     <div className="bg-primary text-primary-content rounded-full w-10 h-10 flex items-center justify-center">
                       <Mail className="w-5 h-5" />
                     </div>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{profile?.email || user.email}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium break-all">{profile?.email || user.email}</p>
                     <p className="text-xs text-base-content/60">Primary email address</p>
                   </div>
-                  <span className="badge badge-success gap-1">
+                  <span className="badge badge-success gap-1 self-start sm:self-center">
                     <CheckCircle className="w-3 h-3" />
                     Verified
                   </span>
@@ -382,7 +382,7 @@ export default function ProfileStudent() {
                 )}
 
                 <div className="card-actions mt-4">
-                  <button className="btn btn-primary gap-2" onClick={changePassword}>
+                  <button className="btn btn-primary gap-2 w-full sm:w-auto" onClick={changePassword}>
                     <Key className="w-4 h-4" />
                     Update Password
                   </button>

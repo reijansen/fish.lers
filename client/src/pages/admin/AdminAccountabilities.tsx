@@ -391,7 +391,59 @@ const AdminAccountabilities: React.FC = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile list (cards) */}
+          <div className="lg:hidden p-3 sm:p-4 space-y-3">
+            {filtered.length === 0 ? (
+              <div className="text-center py-10 text-base-content/60">No accountabilities found</div>
+            ) : (
+              filtered.map((r) => (
+                <div key={r.id} className="card bg-base-100 border border-base-300 shadow-sm">
+                  <div className="card-body p-4 gap-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs text-base-content/60">Due</div>
+                        <div className="font-semibold truncate">{r.due || "No date set"}</div>
+                      </div>
+                      <div className="shrink-0">{getStatusBadge(r.status)}</div>
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="text-xs text-base-content/60">Student</div>
+                      <div className="font-medium truncate">
+                        {studentNameByNumber[r.studentNumber] ||
+                          r.studentName ||
+                          r.createdByName ||
+                          (r.createdBy ? userInfoById[r.createdBy]?.displayName : undefined) ||
+                          r.createdBy ||
+                          "Unknown"}
+                      </div>
+                      <div className="text-xs font-mono text-base-content/70 truncate">
+                        {r.studentNumber ||
+                          (r.createdBy ? userInfoById[r.createdBy]?.studentNumber : undefined) ||
+                          "No student number"}
+                      </div>
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="text-xs text-base-content/60">Items</div>
+                      <div className="text-sm text-base-content/80 break-words">
+                        {formatDetails(r.details) || "No details provided"}
+                      </div>
+                    </div>
+
+                    <div className="card-actions justify-end">
+                      <button className="btn btn-primary btn-sm" onClick={() => setShowModal(r)}>
+                        View details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="table min-w-[720px]">
               <thead>
                 <tr>
@@ -449,8 +501,8 @@ const AdminAccountabilities: React.FC = () => {
 
       {/* Details Modal */}
       {showModal && (
-        <dialog className="modal modal-open">
-          <div className="modal-box max-w-lg">
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
             <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setShowModal(null)}>
               <AlertCircle className="w-4 h-4" />
             </button>
@@ -567,8 +619,8 @@ const AdminAccountabilities: React.FC = () => {
       )}
       {/* Add Modal */}
       {addOpen && (
-        <dialog className="modal modal-open">
-          <div className="modal-box max-w-lg">
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
             <h3 className="font-bold text-lg mb-2">Create Accountability</h3>
             <div className="grid grid-cols-1 gap-3">
               <div>

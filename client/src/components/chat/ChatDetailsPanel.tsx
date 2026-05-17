@@ -145,8 +145,11 @@ export const ChatDetailsPanel: React.FC<Props> = ({
             </summary>
             <div className="collapse-content">
               <div className="space-y-2">
-                {memberItems.map((p: any) => (
-                  <div key={p.uid} className="flex items-center justify-between gap-3 p-2 rounded-box bg-base-100 border border-base-300/60">
+                {memberItems.map((p: any, idx: number) => (
+                  <div
+                    key={`${p.uid || "unknown"}:${p.email || p.name || idx}`}
+                    className="flex items-center justify-between gap-3 p-2 rounded-box bg-base-100 border border-base-300/60"
+                  >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="font-semibold truncate">{p.name}</div>

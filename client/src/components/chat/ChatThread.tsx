@@ -7,7 +7,7 @@
 import React, { useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
 import { ChatMessage, ChatPerson, Conversation } from '../../context/ChatContext';
 import { MessageBubble } from './MessageBubble';
-import { Info } from "lucide-react";
+import { ChevronLeft, Info } from "lucide-react";
 
 interface ChatThreadProps {
   messages: ChatMessage[];
@@ -21,6 +21,7 @@ interface ChatThreadProps {
   peopleByUID?: Record<string, ChatPerson>;
   onLoadMore: () => Promise<void>;
   onOpenDetails?: () => void;
+  onBack?: () => void;
   title?: string;
 }
 
@@ -55,6 +56,7 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
   peopleByUID,
   onLoadMore,
   onOpenDetails,
+  onBack,
   title,
 }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -226,10 +228,22 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
       {/* Header */}
       <div className="border-b border-base-300 p-3 sm:p-4 sticky top-0 bg-base-100 z-10">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-          <h3 className="font-semibold text-base sm:text-lg">
-            {conversationTitle}
-          </h3>
+          <div className="min-w-0 flex items-start gap-2">
+            {onBack && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm btn-circle shrink-0"
+                aria-label="Back to conversations"
+                onClick={onBack}
+                title="Back"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div className="min-w-0">
+              <h3 className="font-semibold text-base sm:text-lg">
+                {conversationTitle}
+              </h3>
           <p className="text-xs sm:text-sm text-base-content/60">
             {showMemberCount ? `${memberCount} members` : null}
             {currentConversation.status === 'closed' && (
@@ -243,6 +257,7 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
                 : `Multiple people are typing...`}
             </p>
           )}
+            </div>
           </div>
 
           {onOpenDetails && (

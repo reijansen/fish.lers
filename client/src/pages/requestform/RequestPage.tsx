@@ -52,17 +52,6 @@ export const RequestForm: React.FC = () => {
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
-  // Close calendar when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dateCalendarRef.current && !dateCalendarRef.current.contains(event.target as Node)) {
-        setShowDateCalendar(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const [formData, setFormData] = React.useState({
     startDate: "",
     endDate: "",
@@ -384,7 +373,7 @@ export const RequestForm: React.FC = () => {
               </div>
 
               {/* Equipment List */}
-              <div className="bg-base-100 rounded-lg border border-base-300 h-[400px] overflow-y-auto">
+              <div className="bg-base-100 rounded-lg border border-base-300 h-[55vh] sm:h-[420px] overflow-y-auto">
                 {filteredEquipment.length === 0 ? (
                   <div className="p-8 text-center text-base-content/60">
                     No equipment found
@@ -394,7 +383,7 @@ export const RequestForm: React.FC = () => {
                     {filteredEquipment.map((item: AvailableEquipmentItem) => (
                       <div
                         key={item.equipmentID}
-                        className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3 transition-colors cursor-pointer ${
+                        className={`grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_auto] gap-3 p-3 transition-colors cursor-pointer ${
                           (requestedItems[item.equipmentID!] || 0) > 0 ? 'bg-primary/5' : 'hover:bg-primary/10'
                         }`}
                         onClick={() => openPreview(item)}
@@ -415,23 +404,18 @@ export const RequestForm: React.FC = () => {
                         {/* Item Info */}
                         <div className="flex flex-col gap-1 min-w-0">
                           <p className="font-medium truncate">{item.name}</p>
-                          <div className="flex flex-wrap items-center gap-2 text-sm">
-                            <span className="badge badge-ghost badge-sm">
+                          <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+                            <span className="badge badge-ghost badge-sm whitespace-nowrap">
                               Available: {item.available}
                             </span>
-                            <span className="badge badge-outline badge-sm">
-                              Pending: {item.reserved ?? 0}
-                            </span>
-                            {item.category && (
-                              <span className="badge badge-outline badge-sm">
-                                {item.category}
-                              </span>
-                            )}
                           </div>
                         </div>
 
                         {/* Quantity Stepper */}
-                        <div className="join" onClick={(e) => e.stopPropagation()}>
+                        <div
+                          className="join justify-self-end sm:justify-self-auto col-span-2 sm:col-span-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <button
                             type="button"
                             className="btn btn-sm min-h-11 join-item"
@@ -458,7 +442,7 @@ export const RequestForm: React.FC = () => {
                                 [item.equipmentID!]: Math.max(0, Math.min(Number(e.target.value), item.available)),
                               }))
                             }
-                            className="input input-sm input-bordered min-h-11 join-item w-14 text-center"
+                            className="input input-sm input-bordered min-h-11 join-item w-16 text-center"
                           />
                           <button
                             type="button"
@@ -522,9 +506,9 @@ export const RequestForm: React.FC = () => {
                       className={`btn btn-sm w-full justify-between font-normal ${
                         formData.startDate && formData.endDate ? '' : 'text-base-content/50'
                       }`}
-                      onClick={() => setShowDateCalendar(!showDateCalendar)}
+                      onClick={() => setShowDateCalendar(true)}
                     >
-                      <span>
+                      <span className="truncate">
                         {formData.startDate && formData.endDate
                           ? `${formatDateDisplay(formData.startDate)} — ${formatDateDisplay(formData.endDate)}`
                           : formData.startDate
@@ -533,49 +517,6 @@ export const RequestForm: React.FC = () => {
                       </span>
                       <Calendar className="w-4 h-4" />
                     </button>
-                    {showDateCalendar && (
-                      <div className="absolute z-50 mt-1 bg-base-100 border border-base-300 rounded-lg shadow-xl p-3 right-0">
-                        <div className="text-xs font-medium mb-2 text-center text-base-content/70">
-                          {formData.startDate && !formData.endDate ? 'Now select return date' : 'Select date range'}
-                        </div>
-                        <calendar-range
-                          key={calendarKey}
-                          value={getCalendarRangeValue()}
-                          min={getTodayDate()}
-                          ref={(el: HTMLElement | null) => {
-                            if (el) {
-                              el.removeEventListener('change', handleRangeChange);
-                              el.addEventListener('change', handleRangeChange);
-                            }
-                          }}
-                        >
-                          <calendar-month></calendar-month>
-                        </calendar-range>
-                        <div className="flex gap-2 mt-3 pt-3 border-t border-base-300">
-                          <button
-                            type="button"
-                            className="btn btn-xs min-h-11 btn-ghost flex-1"
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, startDate: '', endDate: '' }));
-                              setCalendarKey(prev => prev + 1);
-                            }}
-                          >
-                            Clear
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-xs min-h-11 btn-primary flex-1"
-                            onClick={() => {
-                              const today = getTodayDate();
-                              setFormData(prev => ({ ...prev, startDate: today, endDate: today }));
-                              setShowDateCalendar(false);
-                            }}
-                          >
-                            Today
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -708,21 +649,22 @@ export const RequestForm: React.FC = () => {
       </div>
       {isPreviewOpen && previewDetails && (
         <div
-          className="modal modal-open modal-bottom sm:modal-middle"
+          className="modal modal-open modal-middle"
           onClick={(e) => {
             if (e.target === e.currentTarget) closePreview();
           }}
         >
-          <div className="modal-box w-full max-w-2xl p-6">
+          <div className="modal-box w-11/12 max-w-2xl max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
             <button
               type="button"
               className="btn btn-sm min-h-11 btn-circle btn-ghost absolute right-4 top-4"
+              aria-label="Close preview"
               onClick={(e) => {
                 e.stopPropagation();
                 closePreview();
               }}
             >
-              X
+              ✕
             </button>
             <div className="flex flex-col gap-4">
               <div>
@@ -793,6 +735,77 @@ export const RequestForm: React.FC = () => {
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Date range picker (mobile-friendly bottom sheet) */}
+      {showDateCalendar && (
+        <div
+          className="modal modal-open modal-middle"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowDateCalendar(false);
+          }}
+        >
+          <div className="modal-box w-11/12 max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-bold text-lg">Select date range</h3>
+                <p className="text-sm text-base-content/70">
+                  {formData.startDate && !formData.endDate ? "Now select the return date." : "Pick usage and return dates."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm min-h-11 btn-circle btn-ghost"
+                aria-label="Close date picker"
+                onClick={() => setShowDateCalendar(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 flex justify-center">
+              <calendar-range
+                key={calendarKey}
+                value={getCalendarRangeValue()}
+                min={getTodayDate()}
+                ref={(el: HTMLElement | null) => {
+                  if (el) {
+                    el.removeEventListener("change", handleRangeChange);
+                    el.addEventListener("change", handleRangeChange);
+                  }
+                }}
+              >
+                <calendar-month></calendar-month>
+              </calendar-range>
+            </div>
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                className="btn min-h-11 btn-ghost flex-1"
+                onClick={() => {
+                  setFormData((prev) => ({ ...prev, startDate: "", endDate: "" }));
+                  setCalendarKey((prev) => prev + 1);
+                }}
+              >
+                Clear dates
+              </button>
+              <button
+                type="button"
+                className="btn min-h-11 btn-outline flex-1"
+                onClick={() => {
+                  const today = getTodayDate();
+                  setFormData((prev) => ({ ...prev, startDate: today, endDate: today }));
+                }}
+              >
+                Set to today
+              </button>
+              <button type="button" className="btn min-h-11 btn-primary flex-1" onClick={() => setShowDateCalendar(false)}>
+                Done
               </button>
             </div>
           </div>

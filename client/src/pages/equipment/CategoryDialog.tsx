@@ -84,11 +84,11 @@ export default function CategoryDialog({ categories }: CategoryDialogProps) {
 
             {/* The Modal */}
             <dialog id="category_modal" className="modal">
-                <div className="modal-box bg-base-100">
+                <div className="modal-box bg-base-100 w-full max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
                     <h3 className="font-bold text-lg mb-4">Inventory Categories</h3>
 
                     {/* Add New Category Input */}
-                    <div className="flex gap-2 mb-6">
+                    <div className="flex flex-col sm:flex-row gap-2 mb-6">
                         <input
                             type="text"
                             placeholder="New category name..."
@@ -96,7 +96,7 @@ export default function CategoryDialog({ categories }: CategoryDialogProps) {
                             value={newCategory}
                             onChange={(e) => setNewCategory(e.target.value)}
                         />
-                        <button className="btn btn-primary" onClick={handleAddCategory}>
+                        <button className="btn btn-primary sm:w-auto" onClick={handleAddCategory}>
                             <Plus className="w-4 h-4" />
                             Add
                         </button>
@@ -120,7 +120,7 @@ export default function CategoryDialog({ categories }: CategoryDialogProps) {
                         )}
                     </div>
 
-                    <div className="modal-action">
+                    <div className="modal-action sticky bottom-0 bg-base-100 pt-3">
                         <form method="dialog">
                             <button className="btn">Close</button>
                         </form>

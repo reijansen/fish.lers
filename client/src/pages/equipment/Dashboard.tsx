@@ -7,6 +7,7 @@ import { Equipment, Category } from "../../db";
 import { logicEquipment } from "./logicEquipment";
 import AddEquipmentDialog from "./AddEquipmentDialog";
 import EquipmentTable from "./EquipmentTable";
+import EquipmentCardList from "./EquipmentCardList";
 import LoadingOverlay from "../../components/LoadingOverlay";
 import MobileStatsPager from "../../components/MobileStatsPager";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -202,7 +203,7 @@ export default function Dashboard() {
             )}
 
             {/* Filters */}
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
               <label className="form-control w-full">
                 <div className="label"><span className="label-text">Search equipment</span></div>
                 <input
@@ -243,9 +244,11 @@ export default function Dashboard() {
                 </select>
               </label>
 
-              {filtersActive && (
-                <button className="btn btn-ghost lg:self-center" onClick={resetFilters}>Reset</button>
-              )}
+              <div className="flex gap-2 flex-wrap">
+                {filtersActive && (
+                  <button className="btn btn-ghost" onClick={resetFilters}>Reset</button>
+                )}
+              </div>
             </div>
 
             {/* Table Metadata */}
@@ -258,19 +261,37 @@ export default function Dashboard() {
               </span>
             </div>
 
-            {/* Equipment Table */}
-            <EquipmentTable
-              equipmentList={filteredEquipment}
-              categories={categories} // Required to map categoryID to Name for display
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onArchive={handleArchive}
-              onRestore={handleRestore}
-              onPurge={handlePurge}
-              sortOrder={sortOrder}
-              onSortOrderChange={setSortOrder}
-              view={tab}
-            />
+            {/* Desktop table */}
+            <div className="hidden lg:block">
+              <EquipmentTable
+                equipmentList={filteredEquipment}
+                categories={categories} // Required to map categoryID to Name for display
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onArchive={handleArchive}
+                onRestore={handleRestore}
+                onPurge={handlePurge}
+                sortOrder={sortOrder}
+                onSortOrderChange={setSortOrder}
+                view={tab}
+              />
+            </div>
+
+            {/* Mobile cards */}
+            <div className="lg:hidden">
+              <EquipmentCardList
+                equipmentList={filteredEquipment}
+                categories={categories}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onArchive={handleArchive}
+                onRestore={handleRestore}
+                onPurge={handlePurge}
+                sortOrder={sortOrder}
+                onSortOrderChange={setSortOrder}
+                view={tab}
+              />
+            </div>
           </div>
         </div>
       </div>

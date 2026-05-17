@@ -159,6 +159,15 @@ export default function HomeStudent() {
     return String(t);
   }
 
+  const openRequestDetails = (requestId: string) => {
+    const found = trackingRequests.find((r: any) => (r.requestID || r.id) === requestId)
+    if (found) {
+      setShowModalRequest({ ...found, id: requestId })
+    } else {
+      setShowModalRequest({ id: requestId })
+    }
+  }
+
   async function handleCancel(requestId: string) {
     if (!confirm('Cancel this request? This will mark it as cancelled.')) return
     try {
@@ -495,7 +504,8 @@ export default function HomeStudent() {
         <div className="card-body p-0">
           {/* Tabs Header */}
           <div className="p-4 border-b border-base-300">
-            <div role="tablist" className="tabs tabs-boxed bg-base-300">
+            <div className="overflow-x-auto">
+              <div role="tablist" className="tabs tabs-boxed bg-base-300 w-fit whitespace-nowrap">
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'all' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => { setFilter('all'); setShowAllCount(5); }}>
                 All ({rows.length})
               </a>
@@ -515,10 +525,87 @@ export default function HomeStudent() {
                 Unfulfilled ({rejectedCancelledCount})
               </a>
             </div>
+            </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
+          {/* Mobile list */}
+          <div className="lg:hidden p-3 sm:p-4 space-y-3">
+            {filteredRows.length === 0 ? (
+              <div className="text-center py-10 text-base-content/60">
+                <MapPin className="w-12 h-12 mx-auto opacity-30" />
+                <p className="font-medium mt-2">No requests found</p>
+                <p className="text-sm">
+                  {filter === 'all'
+                    ? "You haven't made any requests yet"
+                    : filter === 'rejected_cancelled'
+                    ? 'No rejected or cancelled requests'
+                    : `No ${filter} requests`}
+                </p>
+              </div>
+            ) : (
+              (filter === 'all' ? filteredRows.slice(0, showAllCount) : filteredRows).map((r: any, idx: number) => (
+                <div
+                  key={r.requestId || idx}
+                  id={`req-${r.requestId}`}
+                  className={`card bg-base-100 border border-base-300 shadow-sm ${
+                    highlightedId === r.requestId ? 'ring-2 ring-primary/40 animate-pulse' : ''
+                  }`}
+                >
+                  <div className="card-body p-4 gap-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate">{r.purpose || 'Untitled Request'}</div>
+                        {r.duration ? (
+                          <div className="text-xs text-base-content/60 mt-1 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span className="truncate">{r.duration}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0">{getStatusBadge(r)}</div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-base-content/70">
+                      <span className="badge badge-ghost">Qty: {r.totalQuantity || '-'}</span>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs gap-1"
+                        onClick={() => copyToClipboard(r.requestId)}
+                        aria-label="Copy request ID"
+                      >
+                        <Copy className="w-3 h-3" />
+                        {copiedId === r.requestId ? 'Copied' : 'Copy ID'}
+                      </button>
+                    </div>
+
+                    {r.remarks ? (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm w-full gap-2"
+                        onClick={() => { setShowRemarksText(r.remarks); setShowRemarksOpen(true); }}
+                      >
+                        <Eye className="w-4 h-4" />
+                        View admin remarks
+                      </button>
+                    ) : null}
+
+                    <div className="card-actions justify-end">
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm w-full sm:w-auto"
+                        onClick={() => openRequestDetails(r.requestId)}
+                      >
+                        View details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="table min-w-[720px]">
               <thead>
                 <tr>
@@ -587,6 +674,13 @@ export default function HomeStudent() {
                           >
                             <Copy className="w-3 h-3" />
                           </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs"
+                            onClick={() => openRequestDetails(r.requestId)}
+                          >
+                            Details
+                          </button>
                         </div>
                       </td>
                       <td>{getStatusBadge(r)}</td>
@@ -624,9 +718,9 @@ export default function HomeStudent() {
 
       {/* Request Details Modal */}
       {showModalRequest && (
-        <dialog className="modal modal-open">
-          <div className="modal-box max-w-2xl">
-            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setShowModalRequest(null)}>
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-2xl max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
+            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setShowModalRequest(null)} aria-label="Close">
               <X className="w-4 h-4" />
             </button>
             <h3 className="font-bold text-lg mb-4">Request Details</h3>
@@ -702,9 +796,9 @@ export default function HomeStudent() {
 
       {/* Accountability Details Modal */}
       {showAccountabilityModal && (
-        <dialog className="modal modal-open">
-          <div className="modal-box max-w-lg">
-            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setShowAccountabilityModal(null)}>
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
+            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setShowAccountabilityModal(null)} aria-label="Close">
               <X className="w-4 h-4" />
             </button>
             <h3 className="font-bold text-lg mb-4">Accountability Details</h3>
@@ -748,9 +842,9 @@ export default function HomeStudent() {
 
       {/* View All Notifications Modal */}
       {notifAllOpen && (
-        <dialog className="modal modal-open">
-          <div className="modal-box max-w-2xl">
-            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setNotifAllOpen(false)}>
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-2xl max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
+            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setNotifAllOpen(false)} aria-label="Close">
               <X className="w-4 h-4" />
             </button>
             <h3 className="font-bold text-lg mb-4">All Notifications</h3>

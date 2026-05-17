@@ -44,7 +44,15 @@ const App: React.FC = () => {
         <Route
           path="/chat"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute forbidPending>
+              <ChatRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chat/:conversationId"
+          element={
+            <ProtectedRoute forbidPending>
               <ChatRoute />
             </ProtectedRoute>
           }

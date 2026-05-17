@@ -146,6 +146,7 @@ const AdminRequestHistory: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = React.useState<AdminRequestRecord | null>(null);
   const [nameMap, setNameMap] = React.useState<Record<string, string>>({});
   const [superAdminMap, setSuperAdminMap] = React.useState<Record<string, boolean>>({});
+  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
   const { equipmentList, isLoading: isEquipmentLoading } = logicEquipment();
   const requestIdFromQuery = React.useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -443,6 +444,35 @@ const AdminRequestHistory: React.FC = () => {
   const activeFilters =
     search.trim().length > 0 || statusFilter !== "all" || yearFilter !== "all" || quickFilter !== "all";
 
+  const filterChips = React.useMemo(() => {
+    const chips: Array<{ key: string; label: string; onRemove: () => void }> = [];
+    if (search.trim()) chips.push({ key: "search", label: `Search: ${search.trim()}`, onRemove: () => setSearch("") });
+    if (statusFilter !== "all")
+      chips.push({
+        key: "status",
+        label: `Status: ${formatStatusLabel(statusFilter)}`,
+        onRemove: () => setStatusFilter("all"),
+      });
+    if (yearFilter !== "all")
+      chips.push({
+        key: "year",
+        label: `Year: ${yearFilter}`,
+        onRemove: () => setYearFilter("all"),
+      });
+    if (quickFilter !== "all")
+      chips.push({
+        key: "quick",
+        label:
+          quickFilter === "overridden"
+            ? "Quick: Overridden"
+            : quickFilter === "aged48"
+            ? "Quick: Pending 48h+"
+            : "Quick: Super Admin actions",
+        onRemove: () => setQuickFilter("all"),
+      });
+    return chips;
+  }, [search, statusFilter, yearFilter, quickFilter]);
+
   return (
     <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       <LoadingOverlay
@@ -502,7 +532,8 @@ const AdminRequestHistory: React.FC = () => {
 
       <div className="card bg-base-200 shadow-xl">
         <div className="card-body space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* Desktop filters */}
+          <div className="hidden lg:grid grid-cols-5 gap-4">
             <label className="form-control">
               <div className="label">
                 <span className="label-text flex items-center gap-2">
@@ -595,7 +626,54 @@ const AdminRequestHistory: React.FC = () => {
             </label>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          {/* Mobile filters */}
+          <div className="lg:hidden space-y-3">
+            <div className="flex items-end gap-2">
+              <label className="form-control flex-1">
+                <div className="label py-1">
+                  <span className="label-text text-sm font-medium flex items-center gap-2">
+                    <Filter className="w-4 h-4" /> Search
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  className="input input-bordered w-full"
+                  placeholder="Requester, purpose, or ID"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn-primary gap-2 h-11"
+                onClick={() => setMobileFiltersOpen(true)}
+              >
+                <Filter className="w-4 h-4" />
+                Filters
+              </button>
+            </div>
+
+            {filterChips.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {filterChips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    className="badge badge-outline gap-2 py-3 px-3"
+                    onClick={chip.onRemove}
+                    title="Remove filter"
+                  >
+                    <span className="truncate max-w-[14rem]">{chip.label}</span>
+                    <span className="font-bold">×</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-base-content/60">No filters applied</div>
+            )}
+          </div>
+
+          <div className="hidden lg:flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
             <div className="flex gap-2 items-center">
               {activeFilters ? (
                 <>
@@ -623,6 +701,122 @@ const AdminRequestHistory: React.FC = () => {
         </div>
       </div>
 
+      {/* Mobile filter modal */}
+      {mobileFiltersOpen && (
+        <div
+          className="modal modal-open modal-bottom sm:modal-middle"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setMobileFiltersOpen(false);
+          }}
+        >
+          <div className="modal-box w-full max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
+            <button
+              type="button"
+              className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3"
+              onClick={() => setMobileFiltersOpen(false)}
+            >
+              ✕
+            </button>
+            <h3 className="text-lg font-bold mb-3">Filters</h3>
+            <div className="space-y-3">
+              <label className="form-control w-full">
+                <div className="label py-1">
+                  <span className="label-text text-sm font-medium flex items-center gap-2">
+                    <Layers className="w-4 h-4" /> Status
+                  </span>
+                </div>
+                <select
+                  className="select select-bordered"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as "all" | string)}
+                >
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="ongoing">Ongoing</option>
+                  <option value="approved">Approved</option>
+                  <option value="declined">Declined</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="completed">Completed</option>
+                  <option value="returned">Returned</option>
+                </select>
+              </label>
+
+              <label className="form-control w-full">
+                <div className="label py-1">
+                  <span className="label-text text-sm font-medium flex items-center gap-2">
+                    <Calendar className="w-4 h-4" /> Year
+                  </span>
+                </div>
+                <select
+                  className="select select-bordered"
+                  value={yearFilter}
+                  onChange={(e) => setYearFilter(e.target.value as "all" | string)}
+                >
+                  <option value="all">All years</option>
+                  {years.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="form-control w-full">
+                <div className="label py-1">
+                  <span className="label-text text-sm font-medium flex items-center gap-2">
+                    <Clock className="w-4 h-4" /> Sort
+                  </span>
+                </div>
+                <select
+                  className="select select-bordered"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+                >
+                  <option value="desc">Newest first</option>
+                  <option value="asc">Oldest first</option>
+                </select>
+              </label>
+
+              <label className="form-control w-full">
+                <div className="label py-1">
+                  <span className="label-text text-sm font-medium flex items-center gap-2">
+                    <Filter className="w-4 h-4" /> View
+                  </span>
+                </div>
+                <select
+                  className="select select-bordered"
+                  value={quickFilter}
+                  onChange={(e) => setQuickFilter(e.target.value as any)}
+                >
+                  <option value="all">Show all requests</option>
+                  <option value="overridden">Only overridden requests</option>
+                  <option value="super-admin-actions">Only super-admin actions</option>
+                  <option value="aged48">Pending over 48 hours</option>
+                </select>
+              </label>
+            </div>
+            <div className="modal-action sticky bottom-0 bg-base-100 pt-3">
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                  setYearFilter("all");
+                  setQuickFilter("all");
+                  setSortOrder("desc");
+                }}
+              >
+                Reset
+              </button>
+              <button className="btn btn-primary" onClick={() => setMobileFiltersOpen(false)}>
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {grouped.length === 0 ? (
         <div className="card bg-base-100 shadow text-center py-12">
           <p className="font-medium">No history matches your filters.</p>
@@ -640,8 +834,8 @@ const AdminRequestHistory: React.FC = () => {
               </div>
               <div className="card bg-base-100 border border-base-300 shadow">
                 <div className="card-body p-0">
-                  <div className="overflow-x-auto">
-                    <table className="table table-fixed w-full min-w-[720px]">
+                  <div className="hidden lg:block overflow-x-auto">
+                    <table className="table w-full min-w-[720px]">
                       <thead>
                         <tr>
                           <th className="w-[32%]">Request</th>
@@ -722,6 +916,69 @@ const AdminRequestHistory: React.FC = () => {
                       </tbody>
                     </table>
                   </div>
+
+                  <div className="lg:hidden p-3 space-y-2">
+                    {entries.map((req) => {
+                      const requester = getRequester(req);
+                      const itemCount =
+                        req.items?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
+                      const submittedOn = req.createdAt
+                        ? req.createdAt.toLocaleDateString()
+                        : req.createdAtClient
+                        ? new Date(req.createdAtClient).toLocaleDateString()
+                        : "â€”";
+                      const usageRange = formatUsageRange(req);
+                      const statusKey = (req.status || "pending").toLowerCase();
+                      const isOngoing = statusKey === "ongoing";
+
+                      return (
+                        <div
+                          key={req.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedRequest(req)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") setSelectedRequest(req);
+                          }}
+                          className="card bg-base-100 border border-base-300 shadow-sm cursor-pointer active:scale-[0.99] transition-transform"
+                        >
+                          <div className="card-body p-4 space-y-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-bold truncate">
+                                  {req.purpose || "Untitled Request"}
+                                </div>
+                                <div className="text-xs text-base-content/60 truncate">
+                                  {requester}
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                <span className={`badge ${getStatusBadgeClass(req.status || "")}`}>
+                                  {formatStatusLabel(req.status || "pending")}
+                                </span>
+                                <span className="text-[11px] text-base-content/60 whitespace-nowrap">
+                                  {submittedOn}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-base-content/70">
+                              <span className="badge badge-outline">{usageRange}</span>
+                              <span className="badge badge-ghost">{itemCount} items</span>
+                              {isOngoing && <span className="badge badge-success">Ongoing</span>}
+                              {(req.overriddenAt || req.overriddenBy) && (
+                                <span className="badge badge-secondary">Super Admin</span>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] text-base-content/50 font-mono truncate">
+                              ID: {req.id}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
@@ -731,12 +988,12 @@ const AdminRequestHistory: React.FC = () => {
 
       {selectedRequest && (
         <div
-          className="modal modal-open"
+          className="modal modal-open modal-bottom sm:modal-middle"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedRequest(null);
           }}
         >
-          <div className="modal-box max-w-3xl">
+          <div className="modal-box w-full max-w-3xl max-h-[90dvh] overflow-y-auto">
             <button
               className="btn btn-sm btn-circle btn-ghost absolute right-4 top-4"
               onClick={() => setSelectedRequest(null)}
@@ -885,29 +1142,54 @@ const AdminRequestHistory: React.FC = () => {
                   Items requested
                 </p>
                 {selectedRequest.items && selectedRequest.items.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="table min-w-[720px]">
-                      <thead>
-                        <tr>
-                          <th>Item</th>
-                          <th>Quantity</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedRequest.items.map((item) => {
-                          const equipment = equipmentList.find(
-                            (eq) => eq.equipmentID === item.equipmentID
-                          );
-                          return (
-                            <tr key={item.equipmentID}>
-                              <td>{equipment?.name || item.equipmentID}</td>
-                              <td>{item.qty || 0}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <>
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="table min-w-[720px]">
+                        <thead>
+                          <tr>
+                            <th>Item</th>
+                            <th>Quantity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedRequest.items.map((item) => {
+                            const equipment = equipmentList.find(
+                              (eq) => eq.equipmentID === item.equipmentID
+                            );
+                            return (
+                              <tr key={item.equipmentID}>
+                                <td>{equipment?.name || item.equipmentID}</td>
+                                <td>{item.qty || 0}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="md:hidden space-y-2">
+                      {selectedRequest.items.map((item) => {
+                        const equipment = equipmentList.find(
+                          (eq) => eq.equipmentID === item.equipmentID
+                        );
+                        const name = equipment?.name || item.equipmentID;
+                        return (
+                          <div
+                            key={item.equipmentID}
+                            className="flex items-center justify-between gap-3 p-3 rounded-xl bg-base-200"
+                          >
+                            <div className="min-w-0">
+                              <div className="font-semibold truncate">{name}</div>
+                              <div className="text-[11px] text-base-content/60 font-mono truncate">
+                                {item.equipmentID}
+                              </div>
+                            </div>
+                            <div className="badge badge-ghost">Qty: {item.qty || 0}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 ) : (
                   <p className="text-sm text-base-content/70">
                     No items recorded for this request.

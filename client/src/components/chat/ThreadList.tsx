@@ -6,7 +6,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Conversation } from '../../context/ChatContext';
-import { Plus, Pin } from "lucide-react";
+import { Archive, Inbox, MoreVertical, Pin, Plus, Trash2 } from "lucide-react";
+import { useChat } from "../../context/ChatContext";
 
 interface ThreadListProps {
   conversations: Conversation[];
@@ -33,8 +34,13 @@ export const ThreadList: React.FC<ThreadListProps> = ({
   getPersonLabel,
   isSuperAdminUID,
 }) => {
+  const chat = useChat();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'support' | 'escalation'>('all');
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmConversationId, setConfirmConversationId] = useState<string | null>(null);
+  const [confirmInput, setConfirmInput] = useState("");
+  const [confirmBusy, setConfirmBusy] = useState(false);
   const unreadThreadCount = useMemo(
     () => Object.values(unreadCounts).filter((n) => (n || 0) > 0).length,
     [unreadCounts]
@@ -168,10 +174,28 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               <span className="badge badge-primary badge-sm">{unreadThreadCountLabel}</span>
             )}
           </div>
-          <button className="btn btn-xs sm:btn-sm btn-primary gap-1 sm:gap-2" onClick={onNewChat}>
-            <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">New Chat</span>
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              className="btn btn-xs sm:btn-sm btn-ghost btn-square"
+              onClick={() => chat.setConversationFolder(chat.conversationFolder === "inbox" ? "archived" : "inbox")}
+              title={chat.conversationFolder === "inbox" ? "View archived" : "Back to inbox"}
+            >
+              {chat.conversationFolder === "inbox" ? (
+                <>
+                  <Archive className="w-4 h-4" />
+                </>
+              ) : (
+                <>
+                  <Inbox className="w-4 h-4" />
+                </>
+              )}
+            </button>
+            <button className="btn btn-xs sm:btn-sm btn-primary gap-1 sm:gap-2" onClick={onNewChat} title="New Chat">
+              <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden lg:inline">New Chat</span>
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -229,12 +253,18 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               const isSelected = currentConversationID === conv.conversationID;
               const isUnread = unreadCount > 0;
               const isPinned = conv.type === "staff" || conv.conversationID === "staff:admins";
+              const isStaff = isPinned;
 
               return (
-                <button
+                <div
                   key={conv.conversationID}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onSelectConversation(conv)}
-                  className={`w-full text-left p-3 sm:p-4 hover:bg-base-200 transition-colors border-l-4 ${
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") onSelectConversation(conv);
+                  }}
+                  className={`w-full text-left p-3 sm:p-4 hover:bg-base-200 transition-colors border-l-4 cursor-pointer select-none ${
                     isSelected
                       ? 'bg-base-200 border-l-primary'
                       : isPinned
@@ -271,6 +301,74 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                       <span className="text-xs text-base-content/60 whitespace-nowrap">
                         {formatDate(conv.lastMessageAt)}
                       </span>
+                      <span
+                        className="dropdown dropdown-end"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs btn-square"
+                          aria-label="Conversation actions"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+                        <ul className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-44 border border-base-300 z-50">
+                          {chat.conversationFolder === "inbox" ? (
+                            <li>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  chat.setConversationArchived(conv.conversationID, true);
+                                }}
+                              >
+                                <Archive className="w-4 h-4" />
+                                Archive
+                              </button>
+                            </li>
+                          ) : (
+                            <li>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  chat.setConversationArchived(conv.conversationID, false);
+                                }}
+                              >
+                                <Inbox className="w-4 h-4" />
+                                Unarchive
+                              </button>
+                            </li>
+                          )}
+                          <li>
+                            <button
+                              type="button"
+                              className="text-error"
+                              disabled={isStaff}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (isStaff) return;
+                                setConfirmConversationId(conv.conversationID);
+                                setConfirmInput("");
+                                setConfirmOpen(true);
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete
+                            </button>
+                          </li>
+                        </ul>
+                      </span>
                     </div>
                   </div>
 
@@ -281,12 +379,81 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                   {conv.status === 'closed' && (
                     <span className="badge badge-warning badge-xs mt-2">Closed</span>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
         )}
       </div>
+
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !confirmBusy) {
+              setConfirmOpen(false);
+              setConfirmConversationId(null);
+              setConfirmInput("");
+            }
+          }}
+        >
+          <div
+            className="bg-base-100 p-4 rounded shadow max-w-lg w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold">Delete Conversation</h3>
+            <p className="text-sm text-base-content/70 mt-1">
+              This will hide the conversation from your inbox (Messenger-style). Type CONFIRM to proceed.
+            </p>
+            <div className="alert alert-warning mt-3">
+              <span>Type CONFIRM to delete this conversation for your account.</span>
+            </div>
+            <input
+              type="text"
+              className="input input-bordered w-full mt-3"
+              placeholder="Type CONFIRM"
+              value={confirmInput}
+              onChange={(e) => setConfirmInput(e.target.value)}
+              disabled={confirmBusy}
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                type="button"
+                className="btn"
+                disabled={confirmBusy}
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setConfirmConversationId(null);
+                  setConfirmInput("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-error"
+                disabled={
+                  confirmBusy || confirmInput.trim() !== "CONFIRM" || !confirmConversationId
+                }
+                onClick={async () => {
+                  if (!confirmConversationId) return;
+                  try {
+                    setConfirmBusy(true);
+                    await chat.setConversationDeleted(confirmConversationId, true);
+                    setConfirmOpen(false);
+                    setConfirmConversationId(null);
+                    setConfirmInput("");
+                  } finally {
+                    setConfirmBusy(false);
+                  }
+                }}
+              >
+                {confirmBusy ? "Deleting..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

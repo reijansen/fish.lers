@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, CheckCircle, XCircle, Eye, AlertCircle, Clock, User } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, AlertCircle, User } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useAnnouncementManagement } from '../../hooks/useAnnouncementManagement';
 import LoadingOverlay from '../../components/LoadingOverlay';
+import MobileStatsPager from '../../components/MobileStatsPager';
 import { Announcement } from '../../db';
 import { deleteField } from 'firebase/firestore';
 import { useToast } from '../../context/toastContext';
@@ -163,22 +164,30 @@ export default function ManageAnnouncements() {
       <LoadingOverlay show={loading || processing} message={processing ? "Processing..." : "Loading announcements..."} />
       <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold">Manage Announcements</h1>
             <p className="text-base-content/70">Review and manage system announcements</p>
           </div>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm sm:btn-md gap-2 w-full sm:w-auto"
             onClick={() => navigate('/admin/announcements/create')}
           >
             <Plus className="w-4 h-4" />
-            Create Announcement
+            <span>Create Announcement</span>
           </button>
         </div>
       
         {/* Stats */}
-        <div className="stats stats-horizontal shadow bg-base-200 w-full">
+        <MobileStatsPager
+          breakpoint="lg"
+          items={[
+            { label: "Pending", value: pendingAnnouncements.length, colorClass: "text-warning" },
+            { label: "Approved", value: approvedAnnouncements.length, colorClass: "text-success" },
+            { label: "Rejected", value: rejectedAnnouncements.length, colorClass: "text-error" },
+          ]}
+        />
+        <div className="hidden lg:flex stats stats-horizontal shadow bg-base-200 w-full">
           <div className="stat">
             <div className="stat-title">Pending</div>
             <div className="stat-value text-warning">{pendingAnnouncements.length}</div>
@@ -362,7 +371,7 @@ export default function ManageAnnouncements() {
             className="tab"
             aria-label="Pending"
           />
-          <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
+          <div className="tab-content bg-base-100 border-base-300 rounded-box p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Pending Approval ({pendingAnnouncements.length})</h3>
             {pendingAnnouncements.length === 0 ? (
               <div className="text-center py-8 text-base-content/60">
@@ -373,7 +382,7 @@ export default function ManageAnnouncements() {
                 {pendingAnnouncements.map((announcement) => (
                   <div key={announcement.announcementID} className="card bg-base-200">
                     <div className="card-body">
-                      <div className="flex items-start justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex items-start gap-3">
                           {getTypeIcon(announcement.type)}
                           <div className="flex-1">
@@ -388,26 +397,26 @@ export default function ManageAnnouncements() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                           <button
-                            className="btn btn-success btn-sm"
+                            className="btn btn-success btn-sm w-full sm:w-auto"
                             onClick={() => {
                               setSelectedAnnouncement(announcement);
                               setAction('approve');
                             }}
                           >
                             <CheckCircle className="w-4 h-4" />
-                            Approve
+                            <span>Approve</span>
                           </button>
                           <button
-                            className="btn btn-error btn-sm"
+                            className="btn btn-error btn-sm w-full sm:w-auto"
                             onClick={() => {
                               setSelectedAnnouncement(announcement);
                               setAction('reject');
                             }}
                           >
                             <XCircle className="w-4 h-4" />
-                            Reject
+                            <span>Reject</span>
                           </button>
                         </div>
                       </div>
@@ -424,7 +433,7 @@ export default function ManageAnnouncements() {
             className="tab"
             aria-label="Approved"
           />
-          <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
+          <div className="tab-content bg-base-100 border-base-300 rounded-box p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Approved Announcements ({approvedAnnouncements.length})</h3>
             {approvedAnnouncements.length === 0 ? (
               <div className="text-center py-8 text-base-content/60">
@@ -435,7 +444,7 @@ export default function ManageAnnouncements() {
                 {approvedAnnouncements.map((announcement) => (
                   <div key={announcement.announcementID} className="card bg-base-200">
                     <div className="card-body">
-                      <div className="flex items-start justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex items-start gap-3">
                           {getTypeIcon(announcement.type)}
                           <div className="flex-1">
@@ -450,13 +459,13 @@ export default function ManageAnnouncements() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                           <button
-                            className="btn btn-outline btn-sm"
+                            className="btn btn-error btn-sm w-full sm:w-auto"
                             onClick={() => setDeleteTarget(announcement)}
                           >
                             <XCircle className="w-4 h-4" />
-                            Archive
+                            <span>Archive</span>
                           </button>
                         </div>
                       </div>
@@ -473,7 +482,7 @@ export default function ManageAnnouncements() {
             className="tab"
             aria-label="Rejected"
           />
-          <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
+          <div className="tab-content bg-base-100 border-base-300 rounded-box p-4 sm:p-6">
             <h3 className="text-lg font-semibold mb-4">Rejected Announcements ({rejectedAnnouncements.length})</h3>
             {rejectedAnnouncements.length === 0 ? (
               <div className="text-center py-8 text-base-content/60">
@@ -484,7 +493,7 @@ export default function ManageAnnouncements() {
                 {rejectedAnnouncements.map((announcement) => (
                   <div key={announcement.announcementID} className="card bg-base-200">
                     <div className="card-body">
-                      <div className="flex items-start justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex items-start gap-3">
                           {getTypeIcon(announcement.type)}
                           <div className="flex-1">
@@ -504,23 +513,23 @@ export default function ManageAnnouncements() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
                           <button
-                            className="btn btn-success btn-sm"
+                            className="btn btn-success btn-sm w-full sm:w-auto"
                             onClick={() => {
                               setSelectedAnnouncement(announcement);
                               setAction('approve');
                             }}
                           >
                             <CheckCircle className="w-4 h-4" />
-                            Approve
+                            <span>Approve</span>
                           </button>
                           <button
-                            className="btn btn-error btn-sm"
+                            className="btn btn-error btn-sm w-full sm:w-auto"
                             onClick={() => setDeleteTarget(announcement)}
                           >
                             <XCircle className="w-4 h-4" />
-                            Archive
+                            <span>Archive</span>
                           </button>
                         </div>
                       </div>
@@ -624,8 +633,8 @@ export default function ManageAnnouncements() {
 
       {/* Review Modal */}
       {selectedAnnouncement && action && (
-        <dialog className="modal modal-open">
-          <div className="modal-box">
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
             <h3 className="font-bold text-lg">
               {action === 'approve' ? 'Approve' : 'Reject'} Announcement
             </h3>
@@ -671,10 +680,12 @@ export default function ManageAnnouncements() {
       )}
 
       {deleteTarget && (
-        <dialog className="modal modal-open">
-          <div className="modal-box">
-                <h3 className="font-bold text-lg">Confirm Archive</h3>
-                <p className="py-4">Are you sure you want to archive the announcement &quot;{deleteTarget.title}&quot;? It can be restored from Archived later.</p>
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-md max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
+            <h3 className="font-bold text-lg">Confirm Archive</h3>
+            <p className="py-4">
+              Are you sure you want to archive the announcement &quot;{deleteTarget.title}&quot;? It can be restored later.
+            </p>
             <div className="modal-action">
               <button
                 className="btn"
@@ -684,11 +695,11 @@ export default function ManageAnnouncements() {
                 Cancel
               </button>
               <button
-                className="btn btn-error"
+                className="btn btn-warning"
                 onClick={handleDelete}
                 disabled={processing}
               >
-                    Archive
+                Archive
               </button>
             </div>
           </div>

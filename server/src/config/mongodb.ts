@@ -3,6 +3,10 @@ import { loadConfig } from './env.js';
 
 let isConnected = false;
 
+export const isMongoConnected = (): boolean => {
+  return isConnected || mongoose.connection.readyState === 1;
+};
+
 export const connectMongoDB = async (): Promise<void> => {
   if (isConnected) return;
   
@@ -19,5 +23,6 @@ export const connectMongoDB = async (): Promise<void> => {
   } catch (err: any) {
     console.warn('⚠️  MongoDB connection failed (using Firestore-only mode):', err.message);
     console.warn('   Chat and other Firestore features will work normally.');
+    isConnected = false;
   }
 };

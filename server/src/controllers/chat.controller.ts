@@ -10,6 +10,7 @@ import { ChatRepository } from "../repositories/chat.repo.js";
 import { canUserAccessConversation } from "../realtime/access-control.js";
 import type { SocketUser } from "../realtime/socket-auth.js";
 import { ChatDataService } from "../services/chat-data.service.js";
+import { filterConversationFolder, normalizeFolder } from "./chat-inbox.controller.js";
 
 /**
  * GET /api/chat/:conversationId/messages
@@ -128,6 +129,7 @@ export async function getUserConversations(
 ): Promise<void> {
   try {
     const { limit = "20" } = req.query;
+    const folder = normalizeFolder((req.query as any).folder);
 
     // ====================================================================
     // Validation
@@ -169,6 +171,9 @@ export async function getUserConversations(
         // Ignore staff room failures; inbox still works without it.
       }
     }
+
+    // Apply per-user folder filtering (Messenger-style archive/delete)
+    conversations = filterConversationFolder(conversations || [], userId, folder);
 
     // Limit results
     const items = conversations.slice(0, parsedLimit);

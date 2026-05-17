@@ -498,7 +498,145 @@ export default function Analytics() {
           </div>
 
           <div className="w-full lg:w-auto">
-            <div className="card bg-base-100/70 border border-base-300 shadow-sm">
+            {/* Mobile: collapsible filters */}
+            <div className="lg:hidden collapse collapse-arrow border border-base-300 bg-base-100/70 shadow-sm">
+              <input type="checkbox" />
+              <div className="collapse-title p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Filter className="w-4 h-4" />
+                    Global filters
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="btn btn-xs btn-outline gap-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        downloadCsv(`fishlers_analytics_${new Date().toISOString().slice(0, 10)}.csv`, exportRows());
+                      }}
+                      type="button"
+                    >
+                      <Download className="w-4 h-4" />
+                      CSV
+                    </button>
+                    <button
+                      className="btn btn-xs btn-outline gap-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.print();
+                      }}
+                      type="button"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Print
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="collapse-content px-3 pb-3">
+                <div className="grid grid-cols-1 gap-2">
+                  <label className="form-control">
+                    <div className="label py-0">
+                      <span className="label-text text-xs">Date range</span>
+                    </div>
+                    <select
+                      className="select select-bordered select-sm"
+                      value={datePreset}
+                      onChange={(e) => setDatePreset(e.target.value as DatePreset)}
+                    >
+                      <option value="7d">Last 7 days</option>
+                      <option value="30d">Last 30 days</option>
+                      <option value="90d">Last 90 days</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </label>
+
+                  <label className="form-control">
+                    <div className="label py-0">
+                      <span className="label-text text-xs">Request status</span>
+                    </div>
+                    <select
+                      className="select select-bordered select-sm"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                    >
+                      <option value="all">All</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="ongoing">Ongoing</option>
+                      <option value="returned">Returned</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </label>
+
+                  <label className="form-control">
+                    <div className="label py-0">
+                      <span className="label-text text-xs">Equipment category</span>
+                    </div>
+                    <select
+                      className="select select-bordered select-sm"
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                    >
+                      <option value="all">All categories</option>
+                      {categoryOptions.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="form-control">
+                    <div className="label py-0">
+                      <span className="label-text text-xs">User type</span>
+                    </div>
+                    <select
+                      className="select select-bordered select-sm"
+                      value={userTypeFilter}
+                      onChange={(e) => setUserTypeFilter(e.target.value)}
+                    >
+                      <option value="all">All users</option>
+                      <option value="student">Students</option>
+                      <option value="admin">Admins</option>
+                    </select>
+                  </label>
+                </div>
+
+                {datePreset === "custom" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    <label className="form-control">
+                      <div className="label py-0">
+                        <span className="label-text text-xs">From</span>
+                      </div>
+                      <input
+                        type="date"
+                        className="input input-bordered input-sm"
+                        value={customFrom}
+                        onChange={(e) => setCustomFrom(e.target.value)}
+                      />
+                    </label>
+                    <label className="form-control">
+                      <div className="label py-0">
+                        <span className="label-text text-xs">To</span>
+                      </div>
+                      <input
+                        type="date"
+                        className="input input-bordered input-sm"
+                        value={customTo}
+                        onChange={(e) => setCustomTo(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop: always-visible filters */}
+            <div className="hidden lg:block card bg-base-100/70 border border-base-300 shadow-sm">
               <div className="card-body p-3 sm:p-4 gap-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm font-semibold">

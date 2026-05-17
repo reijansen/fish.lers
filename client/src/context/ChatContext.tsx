@@ -40,6 +40,8 @@ export interface Conversation {
   lastMessageSenderUID?: string;
   lastMessageSenderRole?: 'student' | 'admin' | 'superAdmin';
   unreadCount?: number;
+  archivedFor?: string[];
+  deletedFor?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +89,10 @@ export interface ChatContextType {
   loadConversation: (conversationID: string) => Promise<void>;
   loadMoreMessages: (conversationID: string, beforeCursor?: string) => Promise<void>;
   loadConversations: () => Promise<void>;
+  conversationFolder: "inbox" | "archived";
+  setConversationFolder: (folder: "inbox" | "archived") => void;
+  setConversationArchived: (conversationID: string, archived: boolean) => Promise<void>;
+  setConversationDeleted: (conversationID: string, deleted: boolean) => Promise<void>;
   sendMessage: (conversationID: string, text: string) => Promise<void>;
   joinConversation: (conversationID: string) => Promise<void>;
   setCurrentConversation: (conv: Conversation | null) => void;
@@ -132,6 +138,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [conversationFolder, setConversationFolder] = useState<"inbox" | "archived">("inbox");
 
   // UI state
   const [messageInput, setMessageInput] = useState('');
@@ -456,7 +463,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(''));
-      const response = await fetch('http://localhost:5000/api/chat/conversations?limit=50', {
+      const url = new URL("http://localhost:5000/api/chat/conversations");
+      url.searchParams.set("limit", "50");
+      url.searchParams.set("folder", conversationFolder);
+      const response = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -490,7 +500,51 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoadingConversations(false);
     }
-  }, [isConnected]);
+  }, [isConnected, conversationFolder]);
+
+  // Reload inbox when switching folders.
+  useEffect(() => {
+    if (!isConnected) return;
+    loadConversations();
+  }, [conversationFolder, isConnected, loadConversations]);
+
+  const setConversationArchived = useCallback(
+    async (conversationID: string, archived: boolean) => {
+      try {
+        const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(""));
+        const res = await fetch(`http://localhost:5000/api/chat/${conversationID}/archive`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ archived }),
+        });
+        if (!res.ok) throw new Error("Failed to update conversation");
+        await loadConversations();
+      } catch (err: any) {
+        console.error("[Chat] Error archiving conversation:", err);
+        setError(err.message || "Failed to update conversation");
+      }
+    },
+    [loadConversations]
+  );
+
+  const setConversationDeleted = useCallback(
+    async (conversationID: string, deleted: boolean) => {
+      try {
+        const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(""));
+        const res = await fetch(`http://localhost:5000/api/chat/${conversationID}/delete`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ deleted }),
+        });
+        if (!res.ok) throw new Error("Failed to update conversation");
+        await loadConversations();
+      } catch (err: any) {
+        console.error("[Chat] Error deleting conversation:", err);
+        setError(err.message || "Failed to update conversation");
+      }
+    },
+    [loadConversations]
+  );
 
   const getPersonLabel = useCallback(
     (uid: string) => {
@@ -550,6 +604,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     loadConversation,
     loadMoreMessages,
     loadConversations,
+    conversationFolder,
+    setConversationFolder,
+    setConversationArchived,
+    setConversationDeleted,
     sendMessage,
     joinConversation,
     setCurrentConversation,

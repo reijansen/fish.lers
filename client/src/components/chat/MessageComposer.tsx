@@ -44,7 +44,7 @@ export const MessageComposer: React.FC<MessageComposerProps> = ({
   };
 
   return (
-    <div className="input-fixed p-2 sm:p-4 bg-base-100">
+    <div className="sticky bottom-0 p-2 sm:p-4 bg-base-100 border-t border-base-300 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
       <div className="flex gap-2 items-end">
         <textarea
           className="textarea textarea-bordered textarea-xs sm:textarea-sm flex-1 resize-none"

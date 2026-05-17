@@ -348,7 +348,110 @@ export default function AdminUsers() {
               <span className="loading loading-spinner loading-lg text-primary" />
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              {/* Mobile list (cards) */}
+              <div className="lg:hidden p-3 sm:p-4 space-y-3">
+                {filteredUsers.length === 0 ? (
+                  <div className="text-center py-10 text-base-content/60">
+                    {debouncedSearchTerm ? "No users match your search." : "No eligible users found."}
+                  </div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <div
+                      key={user.uid}
+                      className={`card bg-base-100 border border-base-300 shadow-sm cursor-pointer transition-colors ${
+                        isCurrentUser(user.uid) ? "ring-2 ring-info/40" : "hover:border-primary/40"
+                      }`}
+                      onClick={() => setSelectedUser(user)}
+                    >
+                      <div className="card-body p-4 gap-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="avatar shrink-0">
+                              <div className="w-10 rounded-xl">
+                                <img
+                                  src={`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                    user.displayName || user.email || "User"
+                                  )}&background=${user.role === "admin" ? "c7d2fe" : "a5b4fc"}&color=${
+                                    user.role === "admin" ? "3730a3" : "312e81"
+                                  }&bold=true`}
+                                  alt={user.displayName || user.email || "User"}
+                                />
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-semibold truncate">{user.displayName || "(No name)"}</div>
+                              <div className="text-xs text-base-content/60 truncate">{user.email || "—"}</div>
+                              <div className="text-xs text-base-content/60 font-mono truncate">{user.uid.slice(0, 12)}...</div>
+                            </div>
+                          </div>
+                          <div className="shrink-0 flex flex-col items-end gap-2">
+                            <span
+                              className={`badge ${
+                                user.role === "admin"
+                                  ? user.isSuperAdmin
+                                    ? "badge-accent"
+                                    : "badge-secondary"
+                                  : "badge-primary"
+                              } badge-sm`}
+                            >
+                              {formatRoleLabel(user.role || "student", !!user.isSuperAdmin)}
+                            </span>
+                            {user.requestedAdmin && user.role !== "admin" ? (
+                              <span className="badge badge-warning badge-sm">Requested</span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 text-xs text-base-content/60">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            Joined {formatDate(user.createdAt) || "—"}
+                          </span>
+                          {isCurrentUser(user.uid) ? <span className="badge badge-info badge-sm">Your Account</span> : null}
+                        </div>
+
+                        {!isCurrentUser(user.uid) && (
+                          <div className="card-actions justify-end" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                              {user.requestedAdmin && user.role !== "admin" ? (
+                                <button
+                                  className="btn btn-sm btn-primary flex-1 sm:flex-none"
+                                  onClick={() => grantAdmin(user)}
+                                  disabled={updating === user.uid}
+                                >
+                                  {updating === user.uid ? "Updating..." : "Grant Admin"}
+                                </button>
+                              ) : null}
+                              {user.role === "admin" && !user.requestedAdmin ? (
+                                <button
+                                  className="btn btn-sm btn-error flex-1 sm:flex-none"
+                                  onClick={() => revokeAdmin(user)}
+                                  disabled={updating === user.uid}
+                                >
+                                  {updating === user.uid ? "Updating..." : "Revoke Admin"}
+                                </button>
+                              ) : null}
+                              {user.role === "admin" && !user.isSuperAdmin && !user.requestedAdmin && (
+                                <button
+                                  className="btn btn-sm btn-accent flex-1 sm:flex-none"
+                                  onClick={() => makeSuperAdmin(user)}
+                                  disabled={updating === user.uid}
+                                >
+                                  {updating === user.uid ? "Updating..." : "Make Super"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden lg:block overflow-x-auto">
               <table className="table table-zebra w-full min-w-[720px]">
                 <thead>
                   <tr>
@@ -454,6 +557,7 @@ export default function AdminUsers() {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>
@@ -472,11 +576,12 @@ export default function AdminUsers() {
 
       {/* User Profile Modal */}
       {selectedUser && (
-        <dialog className="modal modal-open">
-          <div className="modal-box w-full max-w-2xl">
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-2xl max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
             <button
               className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
               onClick={() => setSelectedUser(null)}
+              aria-label="Close"
             >
               ✕
             </button>
@@ -692,7 +797,7 @@ export default function AdminUsers() {
           }}
         >
           <div
-            className="bg-base-100 p-4 rounded shadow max-w-lg w-full max-h-[80vh] overflow-y-auto"
+            className="bg-base-100 p-4 sm:p-6 rounded-box shadow max-w-lg w-full max-h-[85dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold">{confirmTitle}</h3>

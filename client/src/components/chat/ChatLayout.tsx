@@ -5,7 +5,8 @@
  */
 
 import React, { useEffect } from 'react';
-import { MessageCircle } from 'lucide-react';
+import { useNavigate, useParams } from "react-router-dom";
+
 import { useChat } from '../../context/ChatContext';
 import { ThreadList } from './ThreadList';
 import { ChatThread } from './ChatThread';
@@ -17,8 +18,88 @@ import { ChatDetailsPanel } from "./ChatDetailsPanel";
 
 export const ChatLayout: React.FC = () => {
   const chat = useChat();
+  const nav = useNavigate();
+  const { conversationId } = useParams<{ conversationId?: string }>();
   const [isNewChatOpen, setIsNewChatOpen] = React.useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = React.useState(false);
+  const [isNarrow, setIsNarrow] = React.useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    return window.matchMedia("(max-width: 1023px)").matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia("(max-width: 1023px)");
+    const handler = () => setIsNarrow(media.matches);
+    handler();
+    // Safari <14 uses addListener/removeListener.
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", handler);
+      return () => media.removeEventListener("change", handler);
+    }
+    media.addListener(handler);
+    return () => media.removeListener(handler);
+  }, []);
+
+  // Mobile: edge-swipe (left->right) to go back to the thread list.
+  const swipeRef = React.useRef<{
+    active: boolean;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
+    isEdge: boolean;
+  }>({
+    active: false,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    isEdge: false,
+  });
+
+  const onMobileTouchStart = (e: React.TouchEvent) => {
+    if (!isNarrow || !conversationId) return;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    swipeRef.current = {
+      active: true,
+      startX: t.clientX,
+      startY: t.clientY,
+      lastX: t.clientX,
+      lastY: t.clientY,
+      // Only allow swipe-back if started near the left edge (Messenger-like).
+      isEdge: t.clientX <= 24,
+    };
+  };
+
+  const onMobileTouchMove = (e: React.TouchEvent) => {
+    if (!swipeRef.current.active) return;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    swipeRef.current.lastX = t.clientX;
+    swipeRef.current.lastY = t.clientY;
+  };
+
+  const onMobileTouchEnd = () => {
+    const s = swipeRef.current;
+    if (!s.active) return;
+    swipeRef.current.active = false;
+    if (!s.isEdge) return;
+
+    const dx = s.lastX - s.startX;
+    const dy = s.lastY - s.startY;
+
+    // Trigger when swipe is mostly horizontal, and rightwards enough.
+    if (dx > 80 && Math.abs(dy) < 40) {
+      if (isDetailsOpen) {
+        setIsDetailsOpen(false);
+        return;
+      }
+      chat.setCurrentConversation(null);
+      nav("/chat");
+    }
+  };
 
   const getConversationTitle = React.useCallback(
     (conv: any | null): string => {
@@ -57,9 +138,10 @@ export const ChatLayout: React.FC = () => {
     chat.setCurrentConversation(conv);
     setIsDetailsOpen(false);
     await chat.loadConversation(conv.conversationID);
+    nav(`/chat/${conv.conversationID}`);
   };
 
-  const openConversationById = async (conversationID: string) => {
+  const openConversationById = React.useCallback(async (conversationID: string) => {
     // Prefer an existing conversation object if present; otherwise create a lightweight placeholder.
     const existing = chat.conversations.find((c) => c.conversationID === conversationID) || null;
     chat.setCurrentConversation(
@@ -78,7 +160,14 @@ export const ChatLayout: React.FC = () => {
 
     await chat.loadConversation(conversationID);
     await chat.loadConversations();
-  };
+  }, [chat]);
+
+  // Keep URL-selected conversation in sync with loaded state.
+  useEffect(() => {
+    if (!conversationId) return;
+    if (chat.currentConversation?.conversationID === conversationId) return;
+    openConversationById(conversationId);
+  }, [conversationId, chat.currentConversation?.conversationID, openConversationById]);
 
   const handleStartNewChat = async (person: ChatPerson) => {
     const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(""));
@@ -228,163 +317,159 @@ export const ChatLayout: React.FC = () => {
   }
 
   return (
-    <div className="chat-flex-container h-full flex flex-col bg-base-100 rounded-none md:rounded-box border-0 md:border border-base-300">
+    <div className="chat-flex-container h-full flex flex-col bg-base-100 rounded-none lg:rounded-box border-0 lg:border border-base-300">
       {/* Toast notification */}
       {chat.toastNotification && (
         <ChatToast notification={chat.toastNotification} onDismiss={chat.dismissToast} />
       )}
 
       {/* Main chat container */}
-      <div className="flex-1 flex overflow-hidden bg-base-200/40 md:bg-transparent">
-        {/* Thread list - hidden on mobile, sidebar on desktop */}
-        <div className="hidden md:flex md:w-80 flex-shrink-0 overflow-hidden p-3">
-          <div className="flex-1 min-h-0 bg-base-100 rounded-box border border-base-300 shadow-sm overflow-hidden">
-            <ThreadList
-              conversations={chat.conversations}
-              currentConversationID={chat.currentConversation?.conversationID || null}
-              unreadCounts={chat.unreadCounts}
-              userUID={chat.userUID}
-              userRole={chat.userRole}
-              isLoading={chat.isLoadingConversations}
-              onSelectConversation={handleSelectConversation}
-              onNewChat={() => setIsNewChatOpen(true)}
-              getPersonLabel={chat.getPersonLabel}
-              isSuperAdminUID={(uid) => !!chat.peopleByUID[uid]?.isSuperAdmin}
-            />
-          </div>
-        </div>
-
-        {/* Mobile thread list modal */}
-        <div className="md:hidden drawer flex-1 overflow-hidden">
-          <input id="my-drawer" type="checkbox" className="drawer-toggle" />
-          <div className="drawer-content flex flex-col h-full overflow-hidden">
-            {/* Mobile chat area */}
-            <div className="flex-1 flex flex-col min-h-0">
-              <ChatThread
-                messages={chat.messages}
-                currentConversation={chat.currentConversation}
-                isLoading={chat.isLoadingMessages}
-                hasMoreMessages={chat.hasMoreMessages}
-                userUID={chat.userUID}
-                userRole={chat.userRole}
-                peopleByUID={chat.peopleByUID}
-                typingUsers={
-                  chat.currentConversation
-                    ? chat.typingUsersByConversation[chat.currentConversation.conversationID] || []
-                    : []
-                }
-                getPersonLabel={chat.getPersonLabel}
-                onLoadMore={handleLoadMoreMessages}
-                title={getConversationTitle(chat.currentConversation)}
-                onOpenDetails={() => setIsDetailsOpen((v) => !v)}
-              />
-
-              {chat.currentConversation && (
-                <MessageComposer
-                  onSend={handleSendMessage}
-                  onTyping={() => chat.signalTyping(chat.currentConversation!.conversationID)}
-                  disabled={!chat.isConnected}
-                  messageInput={chat.messageInput}
-                  setMessageInput={chat.setMessageInput}
-                  isSendingMessage={chat.isSendingMessage}
-                />
-              )}
-            </div>
-
-            {/* Mobile drawer button */}
-            <label
-              htmlFor="my-drawer"
-              className="btn btn-primary btn-xs sm:btn-sm md:hidden sticky bottom-3 sm:bottom-4 self-start m-2 sm:m-4"
-            >
-              <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Chats</span>
-            </label>
-          </div>
-
-          {/* Mobile drawer side */}
-          <div className="drawer-side">
-            <label htmlFor="my-drawer" className="drawer-overlay"></label>
-            <div className="w-72 sm:w-80 h-full bg-base-100">
-              <ThreadList
-                conversations={chat.conversations}
-                currentConversationID={chat.currentConversation?.conversationID || null}
-                unreadCounts={chat.unreadCounts}
-                userUID={chat.userUID}
-                userRole={chat.userRole}
-                isLoading={chat.isLoadingConversations}
-                onSelectConversation={(conv) => {
-                  handleSelectConversation(conv);
-                  // Close drawer on selection
-                  const checkbox = document.getElementById('my-drawer') as HTMLInputElement;
-                  if (checkbox) checkbox.checked = false;
-                }}
-                onNewChat={() => setIsNewChatOpen(true)}
-                getPersonLabel={chat.getPersonLabel}
-                isSuperAdminUID={(uid) => !!chat.peopleByUID[uid]?.isSuperAdmin}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop chat area */}
-        <div className="hidden md:flex md:flex-1 flex-col overflow-hidden min-h-0">
-          <div className="flex-1 flex overflow-hidden min-h-0 gap-3 p-3">
-            <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-base-100 rounded-box border border-base-300 shadow-sm">
-              <ChatThread
-                messages={chat.messages}
-                currentConversation={chat.currentConversation}
-                isLoading={chat.isLoadingMessages}
-                hasMoreMessages={chat.hasMoreMessages}
-                userUID={chat.userUID}
-                userRole={chat.userRole}
-                peopleByUID={chat.peopleByUID}
-                typingUsers={
-                  chat.currentConversation
-                    ? chat.typingUsersByConversation[chat.currentConversation.conversationID] || []
-                    : []
-                }
-                getPersonLabel={chat.getPersonLabel}
-                onLoadMore={handleLoadMoreMessages}
-                title={getConversationTitle(chat.currentConversation)}
-                onOpenDetails={() => setIsDetailsOpen((v) => !v)}
-              />
-
-              {chat.currentConversation && (
-                <MessageComposer
-                  onSend={handleSendMessage}
-                  onTyping={() => chat.signalTyping(chat.currentConversation!.conversationID)}
-                  disabled={!chat.isConnected}
-                  messageInput={chat.messageInput}
-                  setMessageInput={chat.setMessageInput}
-                  isSendingMessage={chat.isSendingMessage}
-                />
-              )}
-            </div>
-
-            {/* Right panel: always visible on lg+, optional on md */}
-            {chat.currentConversation && (
-              <div className="hidden lg:flex">
-                <ChatDetailsPanel
-                  open={isDetailsOpen}
-                  onClose={() => setIsDetailsOpen(false)}
-                  conversation={chat.currentConversation}
+      <div className="flex-1 flex overflow-hidden bg-base-200/40 lg:bg-transparent">
+        {isNarrow ? (
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            {!conversationId ? (
+              <div className="flex-1 min-h-0 overflow-hidden p-2 sm:p-3">
+                <div className="h-full bg-base-100 rounded-box border border-base-300 shadow-sm overflow-hidden">
+                  <ThreadList
+                    conversations={chat.conversations}
+                    currentConversationID={chat.currentConversation?.conversationID || null}
+                    unreadCounts={chat.unreadCounts}
+                    userUID={chat.userUID}
+                    userRole={chat.userRole}
+                    isLoading={chat.isLoadingConversations}
+                    onSelectConversation={handleSelectConversation}
+                    onNewChat={() => setIsNewChatOpen(true)}
+                    getPersonLabel={chat.getPersonLabel}
+                    isSuperAdminUID={(uid) => !!chat.peopleByUID[uid]?.isSuperAdmin}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div
+                className="flex-1 flex flex-col min-h-0 overflow-hidden"
+                onTouchStart={onMobileTouchStart}
+                onTouchMove={onMobileTouchMove}
+                onTouchEnd={onMobileTouchEnd}
+                onTouchCancel={onMobileTouchEnd}
+              >
+                <ChatThread
+                  messages={chat.messages}
+                  currentConversation={chat.currentConversation}
+                  isLoading={chat.isLoadingMessages}
+                  hasMoreMessages={chat.hasMoreMessages}
                   userUID={chat.userUID}
                   userRole={chat.userRole}
                   peopleByUID={chat.peopleByUID}
+                  typingUsers={
+                    chat.currentConversation
+                      ? chat.typingUsersByConversation[chat.currentConversation.conversationID] || []
+                      : []
+                  }
                   getPersonLabel={chat.getPersonLabel}
+                  onLoadMore={handleLoadMoreMessages}
                   title={getConversationTitle(chat.currentConversation)}
-                  showClose={false}
-                  containerClassName="w-80 xl:w-96 bg-base-100 rounded-box border border-base-300 shadow-sm flex flex-col min-h-0"
+                  onOpenDetails={() => setIsDetailsOpen((v) => !v)}
+                  onBack={() => {
+                    setIsDetailsOpen(false);
+                    chat.setCurrentConversation(null);
+                    nav("/chat");
+                  }}
                 />
+
+                {chat.currentConversation && (
+                  <MessageComposer
+                    onSend={handleSendMessage}
+                    onTyping={() => chat.signalTyping(chat.currentConversation!.conversationID)}
+                    disabled={!chat.isConnected}
+                    messageInput={chat.messageInput}
+                    setMessageInput={chat.setMessageInput}
+                    isSendingMessage={chat.isSendingMessage}
+                  />
+                )}
               </div>
             )}
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Thread list sidebar */}
+            <div className="w-80 flex-shrink-0 overflow-hidden p-3">
+              <div className="flex-1 min-h-0 bg-base-100 rounded-box border border-base-300 shadow-sm overflow-hidden h-full">
+                <ThreadList
+                  conversations={chat.conversations}
+                  currentConversationID={chat.currentConversation?.conversationID || null}
+                  unreadCounts={chat.unreadCounts}
+                  userUID={chat.userUID}
+                  userRole={chat.userRole}
+                  isLoading={chat.isLoadingConversations}
+                  onSelectConversation={handleSelectConversation}
+                  onNewChat={() => setIsNewChatOpen(true)}
+                  getPersonLabel={chat.getPersonLabel}
+                  isSuperAdminUID={(uid) => !!chat.peopleByUID[uid]?.isSuperAdmin}
+                />
+              </div>
+            </div>
+
+            {/* Desktop chat area */}
+            <div className="flex-1 flex-col overflow-hidden min-h-0 flex">
+              <div className="flex-1 flex overflow-hidden min-h-0 gap-3 p-3">
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0 bg-base-100 rounded-box border border-base-300 shadow-sm">
+                  <ChatThread
+                    messages={chat.messages}
+                    currentConversation={chat.currentConversation}
+                    isLoading={chat.isLoadingMessages}
+                    hasMoreMessages={chat.hasMoreMessages}
+                    userUID={chat.userUID}
+                    userRole={chat.userRole}
+                    peopleByUID={chat.peopleByUID}
+                    typingUsers={
+                      chat.currentConversation
+                        ? chat.typingUsersByConversation[chat.currentConversation.conversationID] || []
+                        : []
+                    }
+                    getPersonLabel={chat.getPersonLabel}
+                    onLoadMore={handleLoadMoreMessages}
+                    title={getConversationTitle(chat.currentConversation)}
+                    onOpenDetails={() => setIsDetailsOpen((v) => !v)}
+                  />
+
+                  {chat.currentConversation && (
+                    <MessageComposer
+                      onSend={handleSendMessage}
+                      onTyping={() => chat.signalTyping(chat.currentConversation!.conversationID)}
+                      disabled={!chat.isConnected}
+                      messageInput={chat.messageInput}
+                      setMessageInput={chat.setMessageInput}
+                      isSendingMessage={chat.isSendingMessage}
+                    />
+                  )}
+                </div>
+
+                {/* Right panel: always visible on xl+, optional on lg */}
+                {chat.currentConversation && (
+                  <div className="hidden xl:flex">
+                    <ChatDetailsPanel
+                      open={isDetailsOpen}
+                      onClose={() => setIsDetailsOpen(false)}
+                      conversation={chat.currentConversation}
+                      userUID={chat.userUID}
+                      userRole={chat.userRole}
+                      peopleByUID={chat.peopleByUID}
+                      getPersonLabel={chat.getPersonLabel}
+                      title={getConversationTitle(chat.currentConversation)}
+                      showClose={false}
+                      containerClassName="w-80 xl:w-96 bg-base-100 rounded-box border border-base-300 shadow-sm flex flex-col min-h-0"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Small screens: slide-in details panel (no modal) */}
+      {/* Narrow screens: slide-in details panel */}
       {chat.currentConversation && (
-        <div className={`md:hidden fixed inset-0 z-50 ${isDetailsOpen ? "" : "pointer-events-none"}`}>
+        <div className={`lg:hidden fixed inset-0 z-50 ${isDetailsOpen ? "" : "pointer-events-none"}`}>
           <div
             className={`absolute inset-0 bg-black/40 transition-opacity ${isDetailsOpen ? "opacity-100" : "opacity-0"}`}
             onClick={() => setIsDetailsOpen(false)}
