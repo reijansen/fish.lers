@@ -66,7 +66,7 @@ const AdminDrawerLayout: React.FC<AdminDrawerLayoutProps> = ({ children }) => {
     { icon: <ClipboardList size={20} />, text: "Accountabilities", path: "/admin/accountabilities", active: location.pathname.startsWith("/admin/accountabilities") },
     { icon: <BarChart2 size={20} />, text: "Analytics", path: "/analytics", active: location.pathname.startsWith("/analytics") },
     ...(isSuperAdmin ? [{ icon: <Megaphone size={20} />, text: "Manage Announcements", path: "/admin/announcements", active: location.pathname.startsWith("/admin/announcements") }] : []),
-    { icon: <Users size={20} />, text: "Admin", path: "/admin/users", active: location.pathname.startsWith("/admin/users") },
+    ...(isSuperAdmin ? [{ icon: <Users size={20} />, text: "Manage Admins", path: "/admin/users", active: location.pathname.startsWith("/admin/users") }] : []),
   ];
   const displayClaim = claimRoleLabel.replace(/^Claim:\s*/i, "");
   const isChatRoute = location.pathname.startsWith("/chat");

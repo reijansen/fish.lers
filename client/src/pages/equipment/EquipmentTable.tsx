@@ -1,6 +1,7 @@
 import React from "react";
 import EditEquipmentDialog from "./EditEquipmentDialog";
 import { Equipment, Category } from "../../db";
+import ConfirmDialog from "../../components/confirmDialog";
 
 interface EquipmentTableProps {
   equipmentList: Equipment[];
@@ -59,6 +60,32 @@ export default function EquipmentTable({
   const closeDetails = () => {
     setIsModalOpen(false);
     setSelectedItem(null);
+  };
+
+  // confirmation dialog state
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmData, setConfirmData] = React.useState<{
+    title: string;
+    message: string;
+    action: () => void;
+    confirmClass?: string;
+  } | null>(null);
+
+  // confirm dialog helper
+  const openConfirm = (
+    title: string,
+    message: string,
+    action: () => void,
+    confirmClass = "btn-primary"
+  ) => {
+    setConfirmData({
+      title,
+      message,
+      action,
+      confirmClass,
+    });
+
+    setConfirmOpen(true);
   };
 
   return (
@@ -173,8 +200,12 @@ export default function EquipmentTable({
                           <button
                             className="btn btn-xs"
                             onClick={() => {
-                              if (!confirm(`Archive ${item.name}? This hides it from requests but keeps history.`)) return;
-                              onArchive(item.equipmentID!);
+                              openConfirm(
+                                "Archive Equipment",
+                                `Archive ${item.name}? This hides it from requests but keeps history.`,
+                                () => onArchive(item.equipmentID!),
+                                "btn-warning"
+                              );
                             }}
                           >
                             Archive
@@ -185,15 +216,27 @@ export default function EquipmentTable({
                         <>
                           <button
                             className="btn btn-xs btn-ghost"
-                            onClick={() => onRestore(item.equipmentID!)}
+                            onClick={() => {
+                              if (!item.equipmentID) return;
+
+                              openConfirm(
+                                "Restore Equipment",
+                                `Restore ${item.name}? This will make it active again.`,
+                                () => onRestore(item.equipmentID!)
+                              );
+                            }}
                           >
                             Restore
                           </button>
                           <button
                             className="btn btn-xs btn-error"
                             onClick={() => {
-                              if (!confirm(`Permanently delete ${item.name}? This cannot be undone.`)) return;
-                              onPurge(item);
+                              openConfirm(
+                                "Permanently Delete",
+                                `Permanently delete ${item.name}? This cannot be undone.`,
+                                () => onPurge(item),
+                                "btn-error"
+                              );
                             }}
                           >
                             Purge
@@ -336,16 +379,17 @@ export default function EquipmentTable({
                     <button
                       className="btn btn-warning btn-sm"
                       onClick={() => {
-                        if (!selectedItem.equipmentID) return;
-                        if (
-                          !confirm(
-                            `Archive ${selectedItem.name}? This hides it from requests but keeps history.`
-                          )
-                        )
-                          return;
-                        onArchive(selectedItem.equipmentID);
-                        closeDetails();
-                      }}
+                      if (!selectedItem.equipmentID) return;
+
+                      openConfirm(
+                        "Archive Equipment",
+                        `Archive ${selectedItem.name}? This hides it from requests but keeps history.`,
+                        () => onArchive(selectedItem.equipmentID!),
+                        "btn-warning"
+                      );
+
+                      closeDetails();
+                    }}
                     >
                       Archive
                     </button>
@@ -366,16 +410,17 @@ export default function EquipmentTable({
                     <button
                       className="btn btn-error btn-sm"
                       onClick={() => {
-                        if (!selectedItem.equipmentID) return;
-                        if (
-                          !confirm(
-                            `Permanently delete ${selectedItem.name}? This cannot be undone.`
-                          )
-                        )
-                          return;
-                        onPurge(selectedItem);
-                        closeDetails();
-                      }}
+                      if (!selectedItem.equipmentID) return;
+
+                      openConfirm(
+                        "Permanently Delete",
+                        `Permanently delete ${selectedItem.name}? This cannot be undone.`,
+                        () => onPurge(selectedItem),
+                        "btn-error"
+                      );
+
+                      closeDetails();
+                    }}
                     >
                       Purge
                     </button>
@@ -405,6 +450,22 @@ export default function EquipmentTable({
           onClose={() => setInlineEditItem(null)}
         />
       )}
+    
+      <ConfirmDialog
+        open={confirmOpen}
+        title={confirmData?.title}
+        message={confirmData?.message || ""}
+        confirmClass={confirmData?.confirmClass}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setConfirmData(null);
+        }}
+        onConfirm={() => {
+          confirmData?.action();
+          setConfirmOpen(false);
+          setConfirmData(null);
+        }}
+      />
     </div>
   );
 }

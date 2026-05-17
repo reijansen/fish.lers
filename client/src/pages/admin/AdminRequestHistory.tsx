@@ -170,7 +170,10 @@ const AdminRequestHistory: React.FC = () => {
   }, [location.search]);
 
   React.useEffect(() => {
-    const q = query(collection(db, "requests"), orderBy("createdAtClient", "desc"));
+    const q = query(
+      collection(db, "requests"),
+      orderBy("createdAt", "desc")
+    );
     const unsub = onSnapshot(
       q,
       (snapshot) => {
@@ -188,6 +191,12 @@ const AdminRequestHistory: React.FC = () => {
           } catch {
             createdAt = null;
           }
+          const requesterId =
+            data.createdBy ||
+            data.userID ||
+            data.studentId ||
+            data.studentID;
+
           return {
             id: doc.id,
             adviser: data.adviser,
@@ -200,7 +209,7 @@ const AdminRequestHistory: React.FC = () => {
             createdAt,
             createdAtClient: data.createdAtClient,
             status: data.status,
-            createdBy: data.createdBy,
+            createdBy: requesterId,
             createdByName: data.createdByName,
             declinedRemarks: data.declinedRemarks || data.remarks,
             approvedBy: data.approvedBy,
@@ -222,18 +231,26 @@ const AdminRequestHistory: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    const missing = Array.from(
-      new Set(
-        requests
-          .flatMap((req) => [
-            req.createdBy,
-            req.approvedBy,
-            req.rejectedBy,
-            req.overriddenBy,
-          ])
-          .filter((uid): uid is string => !!uid && !nameMap[uid])
-      )
-    );
+    const getRequesterId = (req: any): string | undefined =>
+    req?.createdBy ||
+    req?.userID ||
+    req?.studentId ||
+    req?.studentID ||
+    undefined;
+
+  const missing = Array.from(
+    new Set(
+      requests
+        .flatMap((req) => [
+          getRequesterId(req),
+          req.approvedBy,
+          req.rejectedBy,
+          req.overriddenBy,
+        ])
+        .filter((uid): uid is string => !!uid && !nameMap[uid])
+    )
+  );
+
     if (!missing.length) return;
 
     missing.forEach(async (uid) => {
@@ -282,12 +299,23 @@ const AdminRequestHistory: React.FC = () => {
     ).length;
     return { total, pending, approved, declined, cancelled };
   }, [requests]);
-
+  
   const getRequester = (req: AdminRequestRecord) => {
-    if (req.createdByName) return req.createdByName;
-    if (req.createdBy && nameMap[req.createdBy]) return nameMap[req.createdBy];
-    if (req.createdBy) return req.createdBy;
-    return "Unlinked requester";
+    if (
+      req.createdByName &&
+      req.createdByName.trim() !== ""
+    ) {
+      return req.createdByName;
+    }
+
+    if (
+      req.createdBy &&
+      nameMap[req.createdBy]
+    ) {
+      return nameMap[req.createdBy];
+    }
+
+    return req.createdBy || "Unknown Requester";
   };
 
   const getActorName = (uid?: string) => {
@@ -613,14 +641,14 @@ const AdminRequestHistory: React.FC = () => {
               <div className="card bg-base-100 border border-base-300 shadow">
                 <div className="card-body p-0">
                   <div className="overflow-x-auto">
-                    <table className="table w-full min-w-[720px]">
+                    <table className="table table-fixed w-full min-w-[720px]">
                       <thead>
                         <tr>
-                          <th>Request</th>
-                          <th>Requester</th>
-                          <th>Date of Usage</th>
-                          <th>Items</th>
-                          <th>Status</th>
+                          <th className="w-[32%]">Request</th>
+                          <th className="w-[22%]">Requester</th>
+                          <th className="w-[20%]">Date of Usage</th>
+                          <th className="w-[14%]">Items</th>
+                          <th className="w-[12%]">Status</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -628,6 +656,9 @@ const AdminRequestHistory: React.FC = () => {
                           const requester = getRequester(req);
                           const itemCount =
                             req.items?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
+                          const itemsList = (req.items || [])
+                            .map((it) => `${equipmentList.find((eq) => eq.equipmentID === it.equipmentID)?.name || it.equipmentID || 'Unknown'}: ${it.qty || 0}`)
+                            .join(', ');
                           const submittedOn = req.createdAt
                             ? req.createdAt.toLocaleString()
                             : req.createdAtClient || "—";
@@ -661,10 +692,19 @@ const AdminRequestHistory: React.FC = () => {
                                 </div>
                               </td>
                               <td>
-                                <div className="flex items-center gap-2">
-                                  <Package className="w-4 h-4" />
-                                  {itemCount} items
-                                </div>
+                                {itemsList ? (
+                                  <div className="tooltip" data-tip={itemsList}>
+                                    <div className="flex items-center gap-2">
+                                      <Package className="w-4 h-4" />
+                                      {itemCount} items
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Package className="w-4 h-4" />
+                                    {itemCount} items
+                                  </div>
+                                )}
                               </td>
                               <td>
                                 <div className="flex flex-wrap items-center gap-2">

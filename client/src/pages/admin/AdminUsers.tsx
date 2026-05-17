@@ -288,7 +288,7 @@ export default function AdminUsers() {
       )}
       <div>
         <h1 className="text-2xl font-bold">Admin Management</h1>
-        <p className="text-base-content/70">Review admin accounts and pending requests using daisyUI cards.</p>
+        <p className="text-base-content/70">Review admin accounts and pending requests.</p>
       </div>
 
       <MobileStatsPager
@@ -463,10 +463,9 @@ export default function AdminUsers() {
           <h3 className="card-title text-lg">About Admin Management</h3>
           <ul className="text-sm text-base-content/70 list-disc list-inside space-y-1">
             <li>This list shows current admins plus users who requested elevated access.</li>
-            <li>Grant Admin approves pending admin requests and clears the request flag.</li>
+            <li>Granting Admin approves pending admin requests and clears the request flag.</li>
             <li>Use Make Super to promote approved admins to super admin access.</li>
             <li>Revoking access demotes the user back to student immediately.</li>
-            <li>All changes are applied in real time via Firestore snapshots.</li>
           </ul>
         </div>
       </div>

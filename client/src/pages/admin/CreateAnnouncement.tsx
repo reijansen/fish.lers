@@ -22,6 +22,7 @@ export default function CreateAnnouncement() {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [active, setActive] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +107,7 @@ export default function CreateAnnouncement() {
       <LoadingOverlay show={submitting} message="Creating announcement..." />
       <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ">
           <div>
             <h1 className="text-2xl font-bold">Create Announcement</h1>
             <p className="text-base-content/70">
@@ -175,6 +176,24 @@ export default function CreateAnnouncement() {
             <div className={`text-sm mt-1 ${getTypeColor(formData.type)}`}>
               Preview: This announcement will appear as a {formData.type} message
             </div>
+          </div>
+
+          {/* Active Toggle */}
+          <div className="form-control mt-4">
+            <label className="label cursor-pointer">
+              <span className="label-text font-medium">Active</span>
+
+              <input
+                type="checkbox"
+                className="toggle toggle-success"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+              />
+            </label>
+
+            <p className="text-xs text-base-content/60 mt-1">
+              Active announcements will take priority when announcements are displayed in banner.
+            </p>
           </div>
 
           {/* Visibility */}

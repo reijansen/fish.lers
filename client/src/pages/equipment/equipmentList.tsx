@@ -1,4 +1,6 @@
 import { Equipment, Category } from "../../db";
+import React, { useState } from "react";
+import ConfirmDialog from "../../components/confirmDialog";
 
 interface EquipmentListProps {
   items: Equipment[];
@@ -8,11 +10,35 @@ interface EquipmentListProps {
 }
 
 export function EquipmentList({ items, categories, onUpdate, onDelete }: EquipmentListProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const [confirmData, setConfirmData] = useState<{
+    title: string;
+    message: string;
+    action: () => void | Promise<void>;
+    confirmClass?: string;
+  } | null>(null);
 
   // Helper to find the name of the category from the provided ID
   const getCategoryName = (id?: string) => {
     if (!id) return "Uncategorized";
     return categories.find((c) => c.categoryID === id)?.name || "Uncategorized";
+  };
+
+  const openConfirm = (
+    title: string,
+    message: string,
+    action: () => void | Promise<void>,
+    confirmClass = "btn-primary"
+  ) => {
+    setConfirmData({
+      title,
+      message,
+      action,
+      confirmClass,
+    });
+
+    setConfirmOpen(true);
   };
 
   return (
@@ -68,9 +94,12 @@ export function EquipmentList({ items, categories, onUpdate, onDelete }: Equipme
               <button
                 className="btn btn-sm btn-error flex-1 md:flex-none"
                 onClick={() => {
-                  if (confirm(`Are you sure you want to delete ${item.name}?`)) {
-                    onDelete(item.equipmentID!);
-                  }
+                  openConfirm(
+                    "Delete Equipment",
+                    `Are you sure you want to delete ${item.name}? This cannot be undone.`,
+                    () => onDelete(item.equipmentID!),
+                    "btn-error"
+                  );
                 }}
               >
                 Delete
@@ -79,6 +108,22 @@ export function EquipmentList({ items, categories, onUpdate, onDelete }: Equipme
           </div>
         ))
       )}
+      <ConfirmDialog
+        open={confirmOpen}
+        title={confirmData?.title}
+        message={confirmData?.message || ""}
+        confirmClass={confirmData?.confirmClass}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setConfirmData(null);
+        }}
+        onConfirm={async () => {
+          await confirmData?.action();
+
+          setConfirmOpen(false);
+          setConfirmData(null);
+        }}
+      />
     </div>
   );
 }

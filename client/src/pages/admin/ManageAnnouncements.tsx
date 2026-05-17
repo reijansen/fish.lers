@@ -5,10 +5,17 @@ import { useAuth } from '../../hooks/useAuth';
 import { useAnnouncementManagement } from '../../hooks/useAnnouncementManagement';
 import LoadingOverlay from '../../components/LoadingOverlay';
 import { Announcement } from '../../db';
+import { deleteField } from 'firebase/firestore';
+import { useToast } from '../../context/toastContext';
 
 export default function ManageAnnouncements() {
   const { isSuperAdmin } = useAuth();
-  const { announcements, loading, approveAnnouncement, rejectAnnouncement, deleteAnnouncement } = useAnnouncementManagement();
+  const { announcements, loading, approveAnnouncement, rejectAnnouncement, archiveAnnouncement, restoreAnnouncement, updateAnnouncement, deleteAnnouncementPermanently } = useAnnouncementManagement();
+  const sortedAnnouncements = [...announcements].sort((a, b) => {
+    const aTime = a.submittedAt ? Date.parse(a.submittedAt as any) : 0;
+    const bTime = b.submittedAt ? Date.parse(b.submittedAt as any) : 0;
+    return bTime - aTime;
+  });
   const navigate = useNavigate();
 
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
@@ -16,6 +23,8 @@ export default function ManageAnnouncements() {
   const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [processing, setProcessing] = useState(false);
+
+  const { showToast } = useToast();
 
   if (!isSuperAdmin) {
     return (
@@ -35,14 +44,24 @@ export default function ManageAnnouncements() {
     try {
       if (action === 'approve') {
         await approveAnnouncement(selectedAnnouncement.announcementID!, reviewNotes.trim() || undefined);
+
+        showToast("Announcement approved successfully!", "success");
+
+        setTimeout(() => {
+          navigate("/admin/announcements");
+        }, 300);
       } else {
         await rejectAnnouncement(selectedAnnouncement.announcementID!, reviewNotes.trim() || undefined);
+
+        showToast("Announcement rejected.", "error");
       }
       setSelectedAnnouncement(null);
       setAction(null);
       setReviewNotes('');
     } catch (error) {
       console.error('Failed to process announcement:', error);
+      
+      showToast("Failed to process announcement.", "error");
     } finally {
       setProcessing(false);
     }
@@ -53,10 +72,15 @@ export default function ManageAnnouncements() {
 
     setProcessing(true);
     try {
-      await deleteAnnouncement(deleteTarget.announcementID!);
+      await archiveAnnouncement(deleteTarget.announcementID!);
+
+      showToast("Announcement archived successfully!", "info");
+
       setDeleteTarget(null);
     } catch (error) {
       console.error('Failed to delete announcement:', error);
+
+      showToast("Failed to archive announcement.", "error");
     } finally {
       setProcessing(false);
     }
@@ -98,10 +122,41 @@ export default function ManageAnnouncements() {
     }
   };
 
-  const activeAnnouncements = announcements.filter((a) => a.active !== false);
-  const pendingAnnouncements = activeAnnouncements.filter((a) => a.status === 'pending');
-  const approvedAnnouncements = activeAnnouncements.filter((a) => a.status === 'approved');
-  const rejectedAnnouncements = activeAnnouncements.filter((a) => a.status === 'rejected');
+  const isArchived = (a: Announcement) => a.archivedAt != null;
+  const isActive = (a: Announcement) => a.active !== false;
+
+  const baseAnnouncements = sortedAnnouncements.filter(a => !isArchived(a));
+  
+  const activeAnnouncements = baseAnnouncements.filter(isActive);
+
+  const inactiveAnnouncements = baseAnnouncements.filter(a => a.active === false);
+
+  const pendingAnnouncements = baseAnnouncements.filter(
+    (a) => a.status === 'pending'
+  );
+
+  const approvedAnnouncements = baseAnnouncements.filter(
+    (a) => a.status === 'approved'
+  );
+
+  const rejectedAnnouncements = baseAnnouncements.filter(
+    (a) => a.status === 'rejected'
+  );
+
+  const archivedAnnouncements = sortedAnnouncements.filter(
+    (a) => a.archivedAt != null
+  );
+
+  const activeOngoingAnnouncements = approvedAnnouncements
+    .filter(isActive)
+    .filter(a => {
+      const now = Date.now();
+      const start = a.startDate ? Date.parse(a.startDate) : -Infinity;
+      const end = a.endDate ? Date.parse(a.endDate) : Infinity;
+      return start <= now && now <= end;
+    });
+  
+    const now = Date.now();
 
   return (
     <>
@@ -121,7 +176,7 @@ export default function ManageAnnouncements() {
             Create Announcement
           </button>
         </div>
-
+      
         {/* Stats */}
         <div className="stats stats-horizontal shadow bg-base-200 w-full">
           <div className="stat">
@@ -140,12 +195,172 @@ export default function ManageAnnouncements() {
 
         {/* Tabs */}
         <div className="tabs tabs-lifted">
+          <input type="radio" name="announcement-tabs" className="tab" aria-label="All" />
+          <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
+            <h3 className="text-lg font-semibold mb-4">All ({baseAnnouncements.length})</h3>
+            {baseAnnouncements.length === 0 ? (
+              <div className="text-center py-8 text-base-content/60">No announcements</div>
+            ) : (
+              <div className="space-y-4">
+                {baseAnnouncements.map((announcement) => (
+                  <div key={announcement.announcementID} className="card bg-base-200">
+                    <div className="card-body">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          {getTypeIcon(announcement.type)}
+                          <div className="flex-1">
+                            <h4 className="font-semibold">{announcement.title}</h4>
+                            <p className="text-sm text-base-content/70 mt-1">{announcement.message}</p>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-base-content/60">
+                              <span>Visible to: {announcement.visibleTo.join(', ')}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => setDeleteTarget(announcement)}
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Archive
+                          </button>
+                          <label className="flex items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-sm toggle-success"
+                              checked={announcement.active !== false}
+                              onChange={async (e) => {
+                                if (announcement.archivedAt) return;
+
+                                await updateAnnouncement(announcement.announcementID!, {
+                                  active: e.target.checked
+                                });
+                              }}
+                            />
+                            <span>{announcement.active !== false ? "Active" : "Inactive"}</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+            
+          <input
+            type="radio"
+            name="announcement-tabs"
+            className="tab"
+            aria-label="Active"
+            defaultChecked
+          />
+          <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
+            <h3 className="text-lg font-semibold mb-4">Active / Ongoing ({activeOngoingAnnouncements.length})</h3>
+            {activeOngoingAnnouncements.length === 0 ? (
+              <div className="text-center py-8 text-base-content/60">No active announcements</div>
+            ) : (
+              <div className="space-y-4">
+                {activeOngoingAnnouncements.map((announcement) => (
+                  <div key={announcement.announcementID} className="card bg-base-200">
+                    <div className="card-body">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          {getTypeIcon(announcement.type)}
+                          <div className="flex-1">
+                            <h4 className="font-semibold">{announcement.title}</h4>
+                            <p className="text-sm text-base-content/70 mt-1">{announcement.message}</p>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-base-content/60">
+                              <span>Visible to: {announcement.visibleTo.join(', ')}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => setDeleteTarget(announcement)}
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Archive
+                          </button>
+                          <label className="flex items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-sm toggle-success"
+                              checked={announcement.active !== false}
+                              onChange={async (e) => {
+                                await updateAnnouncement(announcement.announcementID!, {
+                                  active: e.target.checked
+                                });
+                              }}
+                            />
+                            <span>{announcement.active !== false ? "Active" : "Inactive"}</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <input type="radio" name="announcement-tabs" className="tab" aria-label="Inactive" />
+          <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
+            <h3 className="text-lg font-semibold mb-4">Inactive ({inactiveAnnouncements.length})</h3>
+            {inactiveAnnouncements.length === 0 ? (
+              <div className="text-center py-8 text-base-content/60">No inactive announcements</div>
+            ) : (
+              <div className="space-y-4">
+                {inactiveAnnouncements.map((announcement) => (
+                  <div key={announcement.announcementID} className="card bg-base-200">
+                    <div className="card-body">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          {getTypeIcon(announcement.type)}
+                          <div className="flex-1">
+                            <h4 className="font-semibold">{announcement.title}</h4>
+                            <p className="text-sm text-base-content/70 mt-1">{announcement.message}</p>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-base-content/60">
+                              <span>Visible to: {announcement.visibleTo.join(', ')}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className="btn btn-outline btn-sm"
+                            onClick={() => setDeleteTarget(announcement)}
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Archive
+                          </button>
+                          <label className="flex items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-sm toggle-success"
+                              checked={announcement.active !== false}
+                              onChange={async (e) => {
+                                await updateAnnouncement(announcement.announcementID!, {
+                                  active: e.target.checked
+                                });
+                              }}
+                            />
+                            <span>{announcement.active !== false ? "Active" : "Inactive"}</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <input
             type="radio"
             name="announcement-tabs"
             className="tab"
             aria-label="Pending"
-            defaultChecked
           />
           <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
             <h3 className="text-lg font-semibold mb-4">Pending Approval ({pendingAnnouncements.length})</h3>
@@ -237,11 +452,11 @@ export default function ManageAnnouncements() {
                         </div>
                         <div className="flex gap-2">
                           <button
-                            className="btn btn-error btn-sm"
+                            className="btn btn-outline btn-sm"
                             onClick={() => setDeleteTarget(announcement)}
                           >
                             <XCircle className="w-4 h-4" />
-                            Delete
+                            Archive
                           </button>
                         </div>
                       </div>
@@ -305,8 +520,97 @@ export default function ManageAnnouncements() {
                             onClick={() => setDeleteTarget(announcement)}
                           >
                             <XCircle className="w-4 h-4" />
-                            Delete
+                            Archive
                           </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <input
+            type="radio"
+            name="announcement-tabs"
+            className="tab"
+            aria-label="Archived"
+          />
+          <div className="tab-content bg-base-100 border-base-300 rounded-box p-6">
+            <h3 className="text-lg font-semibold mb-4">Archived Announcements ({archivedAnnouncements.length})</h3>
+            {archivedAnnouncements.length === 0 ? (
+              <div className="text-center py-8 text-base-content/60">No archived announcements</div>
+            ) : (
+              <div className="space-y-4">
+                {archivedAnnouncements.map((announcement) => (
+                  <div key={announcement.announcementID} className="card bg-base-200">
+                    <div className="card-body">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          {getTypeIcon(announcement.type)}
+                          <div className="flex-1">
+                            <h4 className="font-semibold">{announcement.title}</h4>
+                            <p className="text-sm text-base-content/70 mt-1">{announcement.message}</p>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-base-content/60">
+                              <span>Visible to: {announcement.visibleTo.join(', ')}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={async () => {
+                              try {
+                                setProcessing(true);
+
+                                await restoreAnnouncement(announcement.announcementID!);
+
+                                showToast("Announcement restored successfully.", "success");
+                              } catch (error) {
+                                console.error("Failed to restore announcement:", error);
+
+                                showToast("Failed to restore announcement.", "error");
+                              } finally {
+                                setProcessing(false);
+                              }
+                            }}
+                          >
+                            Restore
+                          </button>
+                          
+                          {/* permanent delete for debugging only */}
+                          {/* <button
+                            className="btn btn-error btn-sm"
+                            onClick={async () => {
+                              if (
+                                confirm(
+                                  "Permanently delete this announcement? This cannot be undone."
+                                )
+                              ) {
+                                try {
+                                  await deleteAnnouncementPermanently(
+                                    announcement.announcementID!
+                                  );
+
+                                  showToast(
+                                    "Announcement permanently deleted.",
+                                    "error"
+                                  );
+
+                                } catch (error) {
+                                  console.error(error);
+
+                                  showToast(
+                                    "Failed to permanently delete announcement.",
+                                    "error"
+                                  );
+                                }
+                              }
+                            }}
+                          >
+                            Delete Permanently
+                          </button> */}
+
                         </div>
                       </div>
                     </div>
@@ -369,8 +673,8 @@ export default function ManageAnnouncements() {
       {deleteTarget && (
         <dialog className="modal modal-open">
           <div className="modal-box">
-            <h3 className="font-bold text-lg">Confirm Delete</h3>
-            <p className="py-4">Are you sure you want to delete the announcement &quot;{deleteTarget.title}&quot;?</p>
+                <h3 className="font-bold text-lg">Confirm Archive</h3>
+                <p className="py-4">Are you sure you want to archive the announcement &quot;{deleteTarget.title}&quot;? It can be restored from Archived later.</p>
             <div className="modal-action">
               <button
                 className="btn"
@@ -384,7 +688,7 @@ export default function ManageAnnouncements() {
                 onClick={handleDelete}
                 disabled={processing}
               >
-                Delete
+                    Archive
               </button>
             </div>
           </div>
