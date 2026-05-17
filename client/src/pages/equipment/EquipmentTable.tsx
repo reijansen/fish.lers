@@ -1,7 +1,7 @@
 import React from "react";
 import EditEquipmentDialog from "./EditEquipmentDialog";
 import { Equipment, Category } from "../../db";
-import ConfirmDialog from "../../components/ConfirmDialog";
+import ConfirmDialog from "../../components/confirmDialog";
 
 interface EquipmentTableProps {
   equipmentList: Equipment[];

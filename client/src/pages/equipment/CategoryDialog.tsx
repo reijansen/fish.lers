@@ -3,7 +3,7 @@ import { Plus, Trash2, Tag } from "lucide-react";
 import { collection, addDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../firebase";
 import { Category } from "../../db";
-import ConfirmDialog from "../../components/ConfirmDialog";
+import ConfirmDialog from "../../components/confirmDialog";
 
 interface CategoryDialogProps {
     categories: Category[];
