@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { auth } from "../../firebase";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000";
+
 export type ChatPerson = {
   uid: string;
   displayName?: string;
@@ -31,7 +36,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({ open, onClose, onSta
       setError(null);
       try {
         const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(""));
-        const url = new URL("http://localhost:5000/api/chat/people");
+        const url = new URL(`${API_BASE_URL}/api/chat/people`);
         if (query.trim()) url.searchParams.set("q", query.trim());
         url.searchParams.set("limit", "50");
 

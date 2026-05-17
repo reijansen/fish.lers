@@ -16,6 +16,11 @@ import { NewChatModal, type ChatPerson } from './NewChatModal';
 import { auth } from '../../firebase';
 import { ChatDetailsPanel } from "./ChatDetailsPanel";
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000";
+
 export const ChatLayout: React.FC = () => {
   const chat = useChat();
   const nav = useNavigate();
@@ -176,7 +181,7 @@ export const ChatLayout: React.FC = () => {
     // Student: always their own support thread
     if (chat.userRole === "student") {
       // Ensure support conversation exists, then assign it to the selected admin/superAdmin target if applicable.
-      const supportRes = await fetch("http://localhost:5000/api/chat/support", {
+      const supportRes = await fetch(`${API_BASE_URL}/api/chat/support`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
@@ -188,7 +193,7 @@ export const ChatLayout: React.FC = () => {
       }
 
       if (person.role === "admin") {
-        const assignRes = await fetch("http://localhost:5000/api/chat/support/assign", {
+        const assignRes = await fetch(`${API_BASE_URL}/api/chat/support/assign`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ adminUID: person.uid }),
@@ -210,7 +215,7 @@ export const ChatLayout: React.FC = () => {
 
     // Admin/SuperAdmin: chatting with a student opens that student's support thread
     if (person.role === "student") {
-      const createRes = await fetch(`http://localhost:5000/api/chat/support/${person.uid}`, {
+      const createRes = await fetch(`${API_BASE_URL}/api/chat/support/${person.uid}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       });
@@ -232,7 +237,7 @@ export const ChatLayout: React.FC = () => {
 
     // Admin talking to superAdmin -> create escalation conversation
     if (chat.userRole === "admin" && person.isSuperAdmin) {
-      const res = await fetch("http://localhost:5000/api/chat/escalations", {
+      const res = await fetch(`${API_BASE_URL}/api/chat/escalations`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ reason: "Direct escalation" }),
@@ -248,7 +253,7 @@ export const ChatLayout: React.FC = () => {
 
     // SuperAdmin starting a chat with an admin -> create an escalation conversation tied to that admin.
     if (chat.userRole === "superAdmin" && person.role === "admin") {
-      const res = await fetch(`http://localhost:5000/api/chat/escalations/${person.uid}`, {
+      const res = await fetch(`${API_BASE_URL}/api/chat/escalations/${person.uid}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ reason: "Direct escalation" }),

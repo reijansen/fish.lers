@@ -10,6 +10,16 @@ import { io, Socket } from 'socket.io-client';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:5000";
+
+const SOCKET_BASE_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_SOCKET_IO_URL ||
+  API_BASE_URL;
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -192,7 +202,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
           // Connect Socket.io
           if (!socketRef.current) {
-            const socketURL = import.meta.env.VITE_SOCKET_IO_URL || 'http://localhost:5000';
+            const socketURL = SOCKET_BASE_URL;
             socketRef.current = io(socketURL, {
               auth: { token },
               reconnection: true,
@@ -385,7 +395,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         // Load initial messages via REST API (pagination)
         const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(''));
         const response = await fetch(
-          `http://localhost:5000/api/chat/${conversationID}/messages?limit=50`,
+          `${API_BASE_URL}/api/chat/${conversationID}/messages?limit=50`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -435,7 +445,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(''));
-        const url = new URL(`http://localhost:5000/api/chat/${conversationID}/messages`);
+        const url = new URL(`${API_BASE_URL}/api/chat/${conversationID}/messages`);
         url.searchParams.append('limit', '50');
         if (beforeCursor) url.searchParams.append('before', beforeCursor);
 
@@ -463,7 +473,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(''));
-      const url = new URL("http://localhost:5000/api/chat/conversations");
+      const url = new URL(`${API_BASE_URL}/api/chat/conversations`);
       url.searchParams.set("limit", "50");
       url.searchParams.set("folder", conversationFolder);
       const response = await fetch(url.toString(), {
@@ -481,7 +491,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       // Load a user directory for display names/emails (role-filtered by server).
       try {
-        const peopleRes = await fetch("http://localhost:5000/api/chat/people?limit=50", {
+        const peopleRes = await fetch(`${API_BASE_URL}/api/chat/people?limit=50`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (peopleRes.ok) {
@@ -512,7 +522,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     async (conversationID: string, archived: boolean) => {
       try {
         const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(""));
-        const res = await fetch(`http://localhost:5000/api/chat/${conversationID}/archive`, {
+        const res = await fetch(`${API_BASE_URL}/api/chat/${conversationID}/archive`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ archived }),
@@ -531,7 +541,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     async (conversationID: string, deleted: boolean) => {
       try {
         const token = await (auth.currentUser?.getIdToken() ?? Promise.resolve(""));
-        const res = await fetch(`http://localhost:5000/api/chat/${conversationID}/delete`, {
+        const res = await fetch(`${API_BASE_URL}/api/chat/${conversationID}/delete`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ deleted }),
