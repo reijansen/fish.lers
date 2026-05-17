@@ -9,9 +9,20 @@ type Props = {
   requireAdmin?: boolean;
   requireSuperAdmin?: boolean;
   forbidAdmin?: boolean;
+  requireStudent?: boolean;
+  requirePending?: boolean;
+  forbidPending?: boolean;
 };
 
-export default function ProtectedRoute({ children, requireAdmin, requireSuperAdmin, forbidAdmin }: Props) {
+export default function ProtectedRoute({
+  children,
+  requireAdmin,
+  requireSuperAdmin,
+  forbidAdmin,
+  requireStudent,
+  requirePending,
+  forbidPending,
+}: Props) {
   const { user, loading, isAdmin, isSuperAdmin } = useAuth();
   const loc = useLocation();
   const { trackUnauthorizedRouteHit } = useTelemetry();
@@ -28,6 +39,15 @@ export default function ProtectedRoute({ children, requireAdmin, requireSuperAdm
     } else if (forbidAdmin && isAdmin) {
       unauthorizedAction = "forbid_admin";
       console.warn('Access denied: Student only. User is admin.');
+    } else if (requireStudent && user.role !== "student") {
+      unauthorizedAction = "require_student";
+      console.warn("Access denied: Student role required. User role:", user?.role);
+    } else if (requirePending && user.role !== "admin-pending") {
+      unauthorizedAction = "require_pending";
+      console.warn("Access denied: Pending approval role required. User role:", user?.role);
+    } else if (forbidPending && user.role === "admin-pending") {
+      unauthorizedAction = "forbid_pending";
+      console.warn("Access denied: Pending approval users are not allowed here.");
     }
   }
 
@@ -52,11 +72,28 @@ export default function ProtectedRoute({ children, requireAdmin, requireSuperAdm
   if (!user) return <Navigate to="/login" replace state={{ from: loc }} />;
 
   if (unauthorizedAction === "require_admin") {
+    // Pending-approval users should never be routed into student pages.
+    // Also treat role=admin but missing admin claim as pending approval (claims are the runtime gate).
+    if (user.role !== "student") return <Navigate to="/login" replace state={{ pendingApproval: true }} />;
     return <Navigate to="/student" replace />;
   }
 
   if (unauthorizedAction === "require_super_admin" || unauthorizedAction === "forbid_admin") {
     return <Navigate to="/admindashboard" replace />;
+  }
+
+  if (unauthorizedAction === "require_student") {
+    if (user.role === "admin-pending") return <Navigate to="/login" replace state={{ pendingApproval: true }} />;
+    return <Navigate to="/admindashboard" replace />;
+  }
+
+  if (unauthorizedAction === "require_pending") {
+    // If they are a normal student, bring them to their home. If they are an admin, bring them to admin.
+    return user.role === "student" ? <Navigate to="/student" replace /> : <Navigate to="/admindashboard" replace />;
+  }
+
+  if (unauthorizedAction === "forbid_pending") {
+    return <Navigate to="/login" replace state={{ pendingApproval: true }} />;
   }
   
   return children;

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth, db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { ArrowLeft, Fish } from "lucide-react";
 import ThemeToggle from "../components/ThemeToggle";
 import { formatRoleLabel } from "../utils/roleLabel";
+import React from "react";
 
 const LOGOUT_TOAST_KEY = "fishlers-logout-toast";
 
@@ -19,6 +20,11 @@ export default function Login() {
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const nav = useNavigate();
+  const loc = useLocation();
+  const [pendingModalOpen, setPendingModalOpen] = useState(false);
+  const [grantedModalOpen, setGrantedModalOpen] = useState(false);
+  const [grantedRedirect, setGrantedRedirect] = useState<null | (() => void)>(null);
+  const wasPendingOpenRef = React.useRef(false);
 
   const currentYear = new Date().getFullYear();
   useEffect(() => {
@@ -48,6 +54,63 @@ export default function Login() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    const state = (loc.state || {}) as any;
+    if (state?.pendingApproval === true) {
+      setPendingModalOpen(true);
+      // Clear state to avoid modal reopening on back/refresh loops.
+      nav(loc.pathname, { replace: true, state: {} });
+    }
+  }, [loc.pathname, loc.state, nav]);
+
+  const resetLoginFields = React.useCallback(() => {
+    setEmail("");
+    setPass("");
+    setShowPassword(false);
+    setErr(null);
+    setSuccessMsg(null);
+    setIsLoading(false);
+  }, []);
+
+  const closePendingModal = React.useCallback(() => {
+    setPendingModalOpen(false);
+  }, [resetLoginFields]);
+
+  // Ensure fields reset whenever the pending modal is dismissed, even if it was closed via ESC/backdrop.
+  useEffect(() => {
+    const wasOpen = wasPendingOpenRef.current;
+    if (wasOpen && !pendingModalOpen) {
+      resetLoginFields();
+    }
+    wasPendingOpenRef.current = pendingModalOpen;
+  }, [pendingModalOpen, resetLoginFields]);
+
+  const showPendingModal = React.useCallback(async (uid?: string) => {
+    if (uid) {
+      localStorage.setItem(`adminApproval.pendingSeen:${uid}`, "true");
+    }
+    // Ensure the user can't access any protected areas while pending.
+    try {
+      await auth.signOut();
+    } catch {}
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userRole");
+    setPendingModalOpen(true);
+    resetLoginFields();
+  }, [resetLoginFields]);
+
+  const showGrantedModal = React.useCallback((onDismiss: () => void) => {
+    setGrantedRedirect(() => onDismiss);
+    setGrantedModalOpen(true);
+  }, []);
+
+  const closeGrantedModal = React.useCallback(() => {
+    setGrantedModalOpen(false);
+    const cb = grantedRedirect;
+    setGrantedRedirect(null);
+    if (cb) cb();
+  }, [grantedRedirect]);
 
   async function handleForgotPassword() {
     if (!email) {
@@ -81,11 +144,23 @@ export default function Login() {
       const cred = await signInWithEmailAndPassword(auth, email, pass);
       const userDoc = await getDoc(doc(db, "users", cred.user.uid));
       const firestoreRole = userDoc.data()?.role || null;
+      const requestedAdmin = userDoc.data()?.requestedAdmin || false;
       
       if (!firestoreRole) throw new Error("User role not found in database");
+
+      // Pending-admin users are not allowed into student/admin areas.
+      if (firestoreRole === "admin-pending") {
+        await showPendingModal(cred.user.uid);
+        return;
+      }
       
       // Check if selected role matches Firestore role
       if (firestoreRole !== roleType) {
+        // Special case: user requested admin but is still a student
+        if (firestoreRole === 'student' && requestedAdmin && roleType === 'admin') {
+          await showPendingModal(cred.user.uid);
+          return;
+        }
         const roleLabel = formatRoleLabel(firestoreRole);
         throw new Error(`Your account is registered as ${roleLabel}. Please select ${roleLabel} to log in.`);
       }
@@ -104,7 +179,7 @@ export default function Login() {
           hasAdminAccess = !!idTokenResult.claims.admin || !!idTokenResult.claims.superAdmin;
         }
         if (!hasAdminAccess) {
-          setErr("Your admin account is awaiting approval. An administrator must approve your request first.");
+          await showPendingModal(cred.user.uid);
           return;
         }
       }
@@ -115,6 +190,20 @@ export default function Login() {
       
       // Redirect based on role
       if (firestoreRole === "admin") {
+        const uid = cred.user.uid;
+        const pendingSeenKey = `adminApproval.pendingSeen:${uid}`;
+        const grantedShownKey = `adminApproval.grantedShown:${uid}`;
+        const shouldShowGranted =
+          localStorage.getItem(pendingSeenKey) === "true" &&
+          localStorage.getItem(grantedShownKey) !== "true";
+
+        if (shouldShowGranted) {
+          localStorage.removeItem(pendingSeenKey);
+          localStorage.setItem(grantedShownKey, "true");
+          showGrantedModal(() => nav("/admindashboard", { replace: true }));
+          return;
+        }
+
         nav("/admindashboard", { replace: true });
       } else {
         nav("/student", { replace: true });
@@ -128,11 +217,61 @@ export default function Login() {
         setErr(e.message ?? "Login failed");
       }
       setIsLoading(false);
+    } finally {
+      setIsLoading(false);
     }
   }
 
   return (
     <div className="min-h-dvh flex flex-col bg-gradient-to-b from-base-200 via-base-200 to-primary/30 relative overflow-hidden">
+      {pendingModalOpen && (
+        <dialog className="modal modal-open" onCancel={closePendingModal} onClose={closePendingModal}>
+          <div className="modal-box max-w-lg relative">
+            <button
+              className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+              onClick={closePendingModal}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <h3 className="font-bold text-2xl mb-3">Admin Request Pending</h3>
+            <p className="text-base-content/70 leading-relaxed">
+              Your admin account is waiting for approval by a super administrator. You won&apos;t be
+              able to access student or admin features until your request is approved.
+            </p>
+            <div className="alert alert-info mt-4">
+              <span className="text-sm">
+                After approval, log out and log back in to refresh your token.
+              </span>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={closePendingModal}>close</button>
+          </form>
+        </dialog>
+      )}
+
+      {grantedModalOpen && (
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-lg relative">
+            <button
+              className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+              onClick={closeGrantedModal}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <h3 className="font-bold text-2xl mb-3">Admin Access Granted</h3>
+            <p className="text-base-content/70 leading-relaxed">
+              Your account has been granted admin access. You will be redirected to the Admin
+              Dashboard.
+            </p>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button onClick={closeGrantedModal}>close</button>
+          </form>
+        </dialog>
+      )}
       {toast && (
         <div className="toast toast-top toast-end z-50 mt-24 mr-4">
           <div className={`alert ${toast.type === "success" ? "alert-success" : "alert-error"} shadow-lg`}>
@@ -227,7 +366,7 @@ export default function Login() {
               </button>
             </div>
 
-            <label className="fieldset-label">Email</label>
+            <label className="fieldset-label">Email <span className="text-error">*</span></label>
             <input
               className="input w-full min-h-11"
               placeholder="Email"
@@ -238,7 +377,7 @@ export default function Login() {
               required
             />
 
-            <label className="fieldset-label mt-3">Password</label>
+            <label className="fieldset-label mt-3">Password <span className="text-error">*</span></label>
             <div className="relative">
               <input
                 className="input w-full pr-10 min-h-11"

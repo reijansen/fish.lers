@@ -185,7 +185,11 @@ export class AuthService {
     const authUser = await getAuth().getUser(uid);
     const existingClaims = authUser.customClaims || {};
 
-    const nextRole: "student" | "admin" = isSuperAdmin ? "admin" : user.role;
+    const nextRole: "student" | "admin" = isSuperAdmin
+      ? "admin"
+      : user.role === "admin"
+      ? "admin"
+      : "student";
     const nextAdminClaim = isSuperAdmin || nextRole === "admin";
 
     await getAuth().setCustomUserClaims(uid, {
@@ -211,6 +215,59 @@ export class AuthService {
     }
 
     await UserRepository.update(uid, { isActive: false });
+  }
+
+  /**
+   * Get all users with admin role or pending admin requests.
+   * Used by the admin management page to display accounts that need admin privileges.
+   */
+  static async getAllAdminAndPending(): Promise<User[]> {
+    console.log(`[AdminService] Getting all admin and pending users...`);
+
+    // Query only relevant users instead of scanning the whole collection.
+    const [admins, pending, pendingRole] = await Promise.all([
+      UserRepository.listAdmins(),
+      UserRepository.listPendingAdminRequests(),
+      UserRepository.listAdminPending(),
+    ]);
+
+    console.log(
+      `[AdminService] Retrieved ${admins.length} admins and ${pending.length} pending admin requests`
+    );
+
+    // Merge and de-duplicate by UID.
+    const byUid = new Map<string, User>();
+    for (const u of admins) byUid.set(u.uid, u);
+    for (const u of pending) byUid.set(u.uid, u);
+    for (const u of pendingRole) byUid.set(u.uid, u);
+
+    const merged = Array.from(byUid.values());
+    console.log(`[AdminService] ✅ Returning ${merged.length} admin/pending users`);
+
+    const toIsoStringIfTimestamp = (value: any): string | undefined => {
+      if (!value) return undefined;
+      if (typeof value === "string") return value;
+      if (typeof value === "number") return new Date(value).toISOString();
+      if (value instanceof Date) return value.toISOString();
+      if (typeof value === "object" && typeof value.toDate === "function") {
+        return value.toDate().toISOString();
+      }
+      return undefined;
+    };
+
+    return merged.map((user) => {
+      const createdAt =
+        toIsoStringIfTimestamp((user as any).createdAt) || new Date().toISOString();
+      const updatedAt = toIsoStringIfTimestamp((user as any).updatedAt);
+      const requestedAdmin = (user as any).requestedAdmin === true;
+
+      return {
+        ...user,
+        createdAt,
+        ...(updatedAt ? { updatedAt } : {}),
+        requestedAdmin,
+      };
+    });
   }
 
   /**

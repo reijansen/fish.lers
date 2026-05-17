@@ -1,9 +1,9 @@
 // src/pages/Signup.tsx
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import ThemeToggle from '../components/ThemeToggle';
 import { ArrowLeft, Fish } from 'lucide-react';
 
@@ -54,29 +54,47 @@ export default function Signup() {
 
       // Save user info in Firestore with the requested role (note: admin privileges
       // must still be granted server-side via custom claims; creating a Firestore
-      // user with role:'admin' does NOT automatically grant admin auth claims)
+      // user with role:'admin' does NOT automatically grant admin auth claims).
+      // For admin requests, save as 'admin-pending' so they cannot access student pages.
+      const firestoreRole = requestedRole === 'admin' ? 'admin-pending' : requestedRole;
+      
       await setDoc(doc(db, 'users', cred.user.uid), {
         uid: cred.user.uid,
         displayName: name || '',
         email: email,
-        role: requestedRole,
+        role: firestoreRole,
         ...(requestedRole === 'student' ? { studentNumber: studentNumber.trim() } : { staffId: staffId.trim() }),
         requestedAdmin: requestedRole === 'admin' ? true : false,
         createdAt: new Date(),
+        isActive: true,
+        updatedAt: new Date().toISOString(),
       });
+
+      // Read-back verification to avoid accidental student access if the role write failed.
+      const written = await getDoc(doc(db, "users", cred.user.uid));
+      const writtenRole = written.data()?.role;
+      if (requestedRole === "admin" && writtenRole !== "admin-pending") {
+        throw new Error(
+          "Account created, but admin-pending profile was not saved. Please contact support or try again."
+        );
+      }
 
       // Store auth token and role in localStorage for quick access if needed
       const token = await cred.user.getIdToken();
       localStorage.setItem('authToken', token);
-      localStorage.setItem('userRole', requestedRole);
+      localStorage.setItem('userRole', firestoreRole);
 
       if (requestedRole === 'admin') {
         setToast({
           type: 'success',
-          message: 'Admin account created. Awaiting approval before you can log in.',
+          message: 'Account created! Your admin request is pending approval.',
         });
         setTimeout(() => {
-          nav('/login', { replace: true });
+          // Ensure they cannot access student/admin areas until approved.
+          signOut(auth).catch(() => {});
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("userRole");
+          nav('/login', { replace: true, state: { pendingApproval: true } });
         }, 1200);
       } else {
         setToast({
@@ -195,7 +213,7 @@ export default function Signup() {
           {err && <p className="text-error text-sm mb-3">{err}</p>}
 
           {/* Full Name field */}
-          <label className="fieldset-label">Full Name</label>
+          <label className="fieldset-label">Full Name <span className="text-error">*</span></label>
           <input
             className="input w-full min-h-11"
             placeholder="Full Name"
@@ -208,7 +226,7 @@ export default function Signup() {
           {/* Student Number field - only for students */}
           {requestedRole === 'student' && (
             <>
-              <label className="fieldset-label mt-3">Student Number</label>
+              <label className="fieldset-label mt-3">Student Number <span className="text-error">*</span></label>
               <input
                 className="input w-full min-h-11"
                 placeholder="e.g., 2021-12345"
@@ -223,7 +241,7 @@ export default function Signup() {
           {/* Staff ID field - only for admins */}
           {requestedRole === 'admin' && (
             <>
-              <label className="fieldset-label mt-3">Staff ID</label>
+              <label className="fieldset-label mt-3">Staff ID <span className="text-error">*</span></label>
               <input
                 className="input w-full min-h-11"
                 placeholder="e.g., STAFF-001"
@@ -236,7 +254,7 @@ export default function Signup() {
           )}
 
           {/* Email field */}
-          <label className="fieldset-label mt-3">Email</label>
+          <label className="fieldset-label mt-3">Email <span className="text-error">*</span></label>
           <input
             className="input w-full min-h-11"
             placeholder="Email"
@@ -248,7 +266,7 @@ export default function Signup() {
           />
 
           {/* Password field */}
-          <label className="fieldset-label mt-3">Password</label>
+          <label className="fieldset-label mt-3">Password <span className="text-error">*</span></label>
           <div className="relative">
             <input
               className="input w-full pr-10 min-h-11"
@@ -281,7 +299,7 @@ export default function Signup() {
           </div>
 
           {/* Confirm Password field */}
-          <label className="fieldset-label mt-3">Confirm Password</label>
+          <label className="fieldset-label mt-3">Confirm Password <span className="text-error">*</span></label>
           <div className="relative">
             <input
               className="input w-full pr-10 min-h-11"

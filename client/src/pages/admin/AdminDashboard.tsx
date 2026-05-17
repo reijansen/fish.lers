@@ -270,33 +270,44 @@ const AdminDashboard: React.FC = () => {
           ...docSnap.data(),
         })) as Request[];
 
-        const uids = Array.from(new Set(data.map((d: any) => d.createdBy).filter(Boolean)));
-        const missingUids = uids.filter((uid) => !userNameCacheRef.current[uid]);
-        if (missingUids.length > 0) {
-          await Promise.all(
-            missingUids.map(async (uid) => {
-              try {
-                const userDoc = await getDoc(doc(db, "users", uid));
-                if (userDoc.exists()) {
-                  const ud = userDoc.data() as any;
-                  userNameCacheRef.current[uid] = ud.displayName || ud.email || uid;
-                } else {
-                  userNameCacheRef.current[uid] = uid;
-                }
-              } catch (e) {
-                console.warn("Failed to load user", uid, e);
-                userNameCacheRef.current[uid] = uid;
+        // Collect all userIDs (createdBy) that need enrichment
+        const uids = Array.from(new Set(
+          data
+            .map((d: any) => d.createdBy)
+            .filter((uid: string | undefined) => !!uid && !userNameCacheRef.current[uid])
+        ));
+
+        // Batch fetch user display names from the server
+        if (uids.length > 0) {
+          try {
+            const response = await fetch("/api/requests/batch/user-names", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userIds: uids }),
+            });
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.data) {
+                Object.assign(userNameCacheRef.current, result.data);
               }
-            })
-          );
+            }
+          } catch (error) {
+            console.warn("Failed to batch fetch user names:", error);
+          }
         }
 
-        const enriched = data.map((d) => ({
-          ...d,
-          createdByName: (d as any).createdBy
-            ? userNameCacheRef.current[(d as any).createdBy] || (d as any).createdBy
-            : undefined,
-        }));
+        const enriched = data.map((d) => {
+          // Use createdByName from Firestore if already stored, otherwise use cached name
+          const createdByName = (d as any).createdByName || (
+            (d as any).createdBy
+              ? userNameCacheRef.current[(d as any).createdBy] || (d as any).createdBy
+              : undefined
+          );
+          return {
+            ...d,
+            createdByName,
+          };
+        });
         setRequests(enriched as Request[]);
       } catch (error) {
         console.error("Error processing requests snapshot:", error);

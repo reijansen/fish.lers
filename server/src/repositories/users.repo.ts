@@ -69,6 +69,44 @@ export class UserRepository {
   }
 
   /**
+   * List all users with admin role.
+   * Prefer this over getAll()+filter to avoid reading the entire collection.
+   */
+  static async listAdmins(): Promise<User[]> {
+    const db = getFirestore();
+    const snapshot = await db
+      .collection(USERS_COLLECTION)
+      .where("role", "==", "admin")
+      .get();
+    return snapshot.docs.map((doc) => doc.data() as User);
+  }
+
+  /**
+   * List all users in admin-pending role.
+   */
+  static async listAdminPending(): Promise<User[]> {
+    const db = getFirestore();
+    const snapshot = await db
+      .collection(USERS_COLLECTION)
+      .where("role", "==", "admin-pending")
+      .get();
+    return snapshot.docs.map((doc) => doc.data() as User);
+  }
+
+  /**
+   * List all users requesting admin access (pending approval).
+   * Prefer this over getAll()+filter to avoid reading the entire collection.
+   */
+  static async listPendingAdminRequests(): Promise<User[]> {
+    const db = getFirestore();
+    const snapshot = await db
+      .collection(USERS_COLLECTION)
+      .where("requestedAdmin", "==", true)
+      .get();
+    return snapshot.docs.map((doc) => doc.data() as User);
+  }
+
+  /**
    * List users by role with a limit.
    */
   static async listByRole(role: User["role"], limit = 50): Promise<User[]> {

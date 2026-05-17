@@ -1,10 +1,9 @@
 import React from 'react'
-import { collection, onSnapshot } from 'firebase/firestore'
-import { db } from '../../firebase'
 import { formatRoleLabel } from '../../utils/roleLabel'
-import { setSuperAdmin, setUserRole } from '../../api/auth.api'
+import { setSuperAdmin, setUserRole, getAdminAndPendingUsers } from '../../api/auth.api'
 import { useTelemetry } from '../../hooks/useTelemetry'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
+import { useAuth } from '../../hooks/useAuth'
 import MobileStatsPager from '../../components/MobileStatsPager'
 import { formatDate as formatDateUtil } from '../../utils/formatters'
 import { User, Mail, Calendar, Shield, AlertCircle } from 'lucide-react'
@@ -22,6 +21,7 @@ interface UserData {
 }
 
 export default function AdminUsers() {
+  const { user: currentUser } = useAuth()
   const [users, setUsers] = React.useState<UserData[]>([])
   const [loading, setLoading] = React.useState(true)
   const [superAdminCount, setSuperAdminCount] = React.useState(0)
@@ -36,25 +36,35 @@ export default function AdminUsers() {
   const [confirmMessage, setConfirmMessage] = React.useState('')
   const [confirmInput, setConfirmInput] = React.useState('')
   const [confirmSubmitting, setConfirmSubmitting] = React.useState(false)
+  const [confirmIntent, setConfirmIntent] = React.useState<'primary' | 'danger'>('primary')
+  const [confirmPrompt, setConfirmPrompt] = React.useState('Type CONFIRM to proceed.')
   const confirmActionRef = React.useRef<null | (() => Promise<void>)>(null)
   const { measureActionLatency } = useTelemetry()
+  
+  const isCurrentUser = (uid: string) => currentUser?.uid === uid
 
   React.useEffect(() => {
-    const usersRef = collection(db, 'users')
-    const unsubscribe = onSnapshot(
-      usersRef,
-      (snapshot) => {
+    async function fetchUsers() {
+      try {
+        setLoading(true)
+        console.log(`[AdminUsers] Fetching admin and pending users...`)
+        const fetchedUsers = await getAdminAndPendingUsers()
+        console.log(`[AdminUsers] ✅ Received ${fetchedUsers.length} users from API`)
+        
         const list: UserData[] = []
         let superCount = 0
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data()
+        
+        fetchedUsers.forEach((data: any) => {
+          // Skip super admins from the main list (count separately)
           if (data.isSuperAdmin) {
             superCount += 1
-            return
+            // Don't return - super admins should still appear in the list if role is 'admin'
           }
-          if (data.role === 'admin' || data.requestedAdmin) {
-            list.push({
-              uid: docSnap.id,
+          
+          // Include all returned users from API
+          if (data && data.uid) {
+            const userData = {
+              uid: data.uid,
               displayName: data.displayName || '',
               email: data.email || '',
               role: data.role || 'student',
@@ -63,25 +73,35 @@ export default function AdminUsers() {
               requestedAdmin: !!data.requestedAdmin,
               studentNumber: data.studentNumber || '',
               staffId: data.staffId || '',
-            })
+            }
+            if (data.requestedAdmin) {
+              console.log(`[AdminUsers] Found requesting admin user:`, { 
+                uid: data.uid.substring(0, 8),
+                email: data.email,
+                requestedAdmin: data.requestedAdmin 
+              })
+            }
+            list.push(userData)
           }
         })
+        
         list.sort((a, b) => {
           if (a.role === 'admin' && b.role !== 'admin') return -1
           if (a.role !== 'admin' && b.role === 'admin') return 1
           return (a.email || '').localeCompare(b.email || '')
         })
+        
+        console.log(`[AdminUsers] ✅ Processed ${list.length} users, ${list.filter(u => u.requestedAdmin).length} requesting admin`)
         setSuperAdminCount(superCount)
         setUsers(list)
         setLoading(false)
-      },
-      (error) => {
-        console.error('Failed to load users', error)
+      } catch (error) {
+        console.error('[AdminUsers] ❌ Failed to load users', error)
         setLoading(false)
       }
-    )
-
-    return () => unsubscribe()
+    }
+    
+    fetchUsers()
   }, [])
 
   async function applyAdminRoleChange(user: UserData, newRole: 'student' | 'admin') {
@@ -146,12 +166,15 @@ export default function AdminUsers() {
   function openTypedConfirm(
     title: string,
     message: string,
-    action: () => Promise<void>
+    action: () => Promise<void>,
+    opts?: { intent?: 'primary' | 'danger'; prompt?: string }
   ) {
     setConfirmTitle(title)
     setConfirmMessage(message)
     setConfirmInput('')
     setConfirmSubmitting(false)
+    setConfirmIntent(opts?.intent || 'primary')
+    setConfirmPrompt(opts?.prompt || 'Type CONFIRM to proceed.')
     confirmActionRef.current = action
     setConfirmOpen(true)
   }
@@ -176,7 +199,8 @@ export default function AdminUsers() {
     openTypedConfirm(
       'Confirm Admin Revocation',
       `You are about to revoke admin privileges from ${displayName}. Type CONFIRM to continue.`,
-      () => applyAdminRoleChange(user, newRole)
+      () => applyAdminRoleChange(user, newRole),
+      { intent: 'danger', prompt: 'Type CONFIRM to proceed with this action.' }
     )
     return
   }
@@ -184,36 +208,59 @@ export default function AdminUsers() {
   async function grantAdmin(user: UserData) {
     const displayName = user.email || user.displayName || user.uid
 
-    if (!confirm(`Grant admin privileges to ${displayName}?`)) return
-    await applyAdminRoleChange(user, 'admin')
+    openTypedConfirm(
+      'Confirm Grant Admin Access',
+      `Grant admin privileges to ${displayName}? Type CONFIRM to proceed.`,
+      () => applyAdminRoleChange(user, 'admin'),
+      { intent: 'primary', prompt: 'Type CONFIRM to grant admin access.' }
+    )
+    return
   }
 
   async function makeSuperAdmin(user: UserData) {
     const nextValue = true
     const displayName = user.email || user.displayName || user.uid
 
-    if (!confirm(`Promote ${displayName} to Super Admin?`)) return
-    await applySuperAdminChange(user, nextValue)
+    openTypedConfirm(
+      'Confirm Super Admin Promotion',
+      `Promote ${displayName} to Super Admin? Type CONFIRM to proceed.`,
+      () => applySuperAdminChange(user, nextValue),
+      { intent: 'danger', prompt: 'Type CONFIRM to promote this account.' }
+    )
+    return
   }
 
   function formatDate(ts: any) {
     try {
       if (!ts) return ''
       let dateStr: string
+      
+      // Handle Firestore Timestamp objects
       if (typeof ts.toDate === 'function') {
-        // Firestore Timestamp
         dateStr = ts.toDate().toISOString().split('T')[0]
-      } else if (typeof ts === 'string') {
-        dateStr = ts
-      } else if (typeof ts === 'number') {
+      } 
+      // Handle ISO string (most common from API)
+      else if (typeof ts === 'string') {
+        // Extract date part (YYYY-MM-DD) from ISO string
+        const match = ts.match(/^\d{4}-\d{2}-\d{2}/)
+        dateStr = match ? match[0] : ts
+      } 
+      // Handle numeric timestamp (milliseconds since epoch)
+      else if (typeof ts === 'number') {
         dateStr = new Date(ts).toISOString().split('T')[0]
-      } else if (ts instanceof Date) {
+      } 
+      // Handle Date objects
+      else if (ts instanceof Date) {
         dateStr = ts.toISOString().split('T')[0]
-      } else {
+      } 
+      // Unknown format
+      else {
         return ''
       }
+      
       return formatDateUtil(dateStr)
-    } catch {
+    } catch (error) {
+      console.warn('Date formatting error:', error, ts)
       return ''
     }
   }
@@ -321,7 +368,11 @@ export default function AdminUsers() {
                     </tr>
                   ) : (
                     filteredUsers.map((user) => (
-                      <tr key={user.uid} className="hover:bg-primary/10 cursor-pointer transition-colors" onClick={() => setSelectedUser(user)}>
+                      <tr key={user.uid} className={`cursor-pointer transition-colors ${
+                        isCurrentUser(user.uid)
+                          ? 'bg-info/20 hover:bg-info/30 font-semibold'
+                          : 'hover:bg-primary/10'
+                      }`} onClick={() => setSelectedUser(user)}>
                         <td>
                           <div className="flex items-center gap-3">
                             <div className="avatar">
@@ -361,36 +412,41 @@ export default function AdminUsers() {
                         </td>
                         <td className="text-sm">{formatDate(user.createdAt) || '—'}</td>
                         <td onClick={(e) => e.stopPropagation()}>
-                          <div className="flex flex-wrap gap-2">
-                            {user.requestedAdmin ? (
-                              <button
-                                className='btn btn-sm btn-primary'
-                                onClick={() => grantAdmin(user)}
-                                disabled={updating === user.uid}
-                              >
-                                {updating === user.uid ? 'Updating...' : 'Grant Admin'}
-                              </button>
-                            ) : null }
-                            {user.role === 'admin' && !user.requestedAdmin ? (
-                              <button
-                                className="btn btn-sm btn-error"
-                                onClick={() => revokeAdmin(user)}
-                                disabled={updating === user.uid}
-                              >
+                          {!isCurrentUser(user.uid) && (
+                            <div className="flex flex-wrap gap-2">
+                              {user.requestedAdmin && user.role !== 'admin' ? (
+                                <button
+                                  className='btn btn-sm btn-primary'
+                                  onClick={() => grantAdmin(user)}
+                                  disabled={updating === user.uid}
+                                >
+                                  {updating === user.uid ? 'Updating...' : 'Grant Admin'}
+                                </button>
+                              ) : null }
+                              {user.role === 'admin' && !user.requestedAdmin ? (
+                                <button
+                                  className="btn btn-sm btn-error"
+                                  onClick={() => revokeAdmin(user)}
+                                  disabled={updating === user.uid}
+                                >
 
-                                {updating === user.uid ? 'Updating...' : 'Revoke Admin'}
-                              </button>
-                            ) : null }
-                            {user.role === 'admin' && !user.isSuperAdmin && !user.requestedAdmin && (
-                              <button
-                                className="btn btn-sm btn-accent"
-                                onClick={() => makeSuperAdmin(user)}
-                                disabled={updating === user.uid}
-                              >
-                                {updating === user.uid ? 'Updating...' : 'Make Super'}
-                              </button>
-                            )}
-                          </div>
+                                  {updating === user.uid ? 'Updating...' : 'Revoke Admin'}
+                                </button>
+                              ) : null }
+                              {user.role === 'admin' && !user.isSuperAdmin && !user.requestedAdmin && (
+                                <button
+                                  className="btn btn-sm btn-accent"
+                                  onClick={() => makeSuperAdmin(user)}
+                                  disabled={updating === user.uid}
+                                >
+                                  {updating === user.uid ? 'Updating...' : 'Make Super'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {isCurrentUser(user.uid) && (
+                            <span className="badge badge-info badge-sm">Your Account</span>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -526,10 +582,16 @@ export default function AdminUsers() {
               </div>
 
               {/* Status Alerts */}
-              {(selectedUser.requestedAdmin || selectedUser.isSuperAdmin) && (
+              {(selectedUser.requestedAdmin || selectedUser.isSuperAdmin || isCurrentUser(selectedUser.uid)) && (
                 <>
                   <div className="divider my-2" />
                   <div className="space-y-2">
+                    {isCurrentUser(selectedUser.uid) && (
+                      <div className="alert alert-info">
+                        <Shield className="w-5 h-5" />
+                        <span>This is your account. You cannot modify your own permissions.</span>
+                      </div>
+                    )}
                     {selectedUser.requestedAdmin && selectedUser.role !== 'admin' && (
                       <div className="alert alert-warning">
                         <AlertCircle className="w-5 h-5" />
@@ -547,53 +609,70 @@ export default function AdminUsers() {
               )}
 
               {/* Actions */}
-              <div className="divider my-2" />
-              <div className="modal-action gap-2">
-                {selectedUser.requestedAdmin ? (
-                  <button
-                    className="btn btn-primary flex-1"
-                    onClick={() => {
-                      grantAdmin(selectedUser)
-                      setSelectedUser(null)
-                    }}
-                    disabled={updating === selectedUser.uid}
-                  >
-                    {updating === selectedUser.uid ? 'Updating...' : 'Grant Admin Access'}
-                  </button>
-                ) : null}
-                {selectedUser.role === 'admin' && !selectedUser.requestedAdmin ? (
-                  <>
-                    {!selectedUser.isSuperAdmin && (
+              {!isCurrentUser(selectedUser.uid) && (
+                <>
+                  <div className="divider my-2" />
+                  <div className="modal-action gap-2">
+                    {selectedUser.requestedAdmin && selectedUser.role !== 'admin' ? (
                       <button
-                        className="btn btn-accent flex-1"
+                        className="btn btn-primary flex-1"
                         onClick={() => {
-                          makeSuperAdmin(selectedUser)
+                          grantAdmin(selectedUser)
                           setSelectedUser(null)
                         }}
                         disabled={updating === selectedUser.uid}
                       >
-                        {updating === selectedUser.uid ? 'Updating...' : 'Make Super Admin'}
+                        {updating === selectedUser.uid ? 'Updating...' : 'Grant Admin Access'}
                       </button>
-                    )}
+                    ) : null}
+                    {selectedUser.role === 'admin' && !selectedUser.requestedAdmin ? (
+                      <>
+                        {!selectedUser.isSuperAdmin && (
+                          <button
+                            className="btn btn-accent flex-1"
+                            onClick={() => {
+                              makeSuperAdmin(selectedUser)
+                              setSelectedUser(null)
+                            }}
+                            disabled={updating === selectedUser.uid}
+                          >
+                            {updating === selectedUser.uid ? 'Updating...' : 'Make Super Admin'}
+                          </button>
+                        )}
+                        <button
+                          className="btn btn-error flex-1"
+                          onClick={() => {
+                            revokeAdmin(selectedUser)
+                            setSelectedUser(null)
+                          }}
+                          disabled={updating === selectedUser.uid}
+                        >
+                          {updating === selectedUser.uid ? 'Updating...' : 'Revoke Admin Access'}
+                        </button>
+                      </>
+                    ) : null}
                     <button
-                      className="btn btn-error flex-1"
-                      onClick={() => {
-                        revokeAdmin(selectedUser)
-                        setSelectedUser(null)
-                      }}
-                      disabled={updating === selectedUser.uid}
+                      className="btn flex-1"
+                      onClick={() => setSelectedUser(null)}
                     >
-                      {updating === selectedUser.uid ? 'Updating...' : 'Revoke Admin Access'}
+                      Close
                     </button>
-                  </>
-                ) : null}
-                <button
-                  className="btn flex-1"
-                  onClick={() => setSelectedUser(null)}
-                >
-                  Close
-                </button>
-              </div>
+                  </div>
+                </>
+              )}
+              {isCurrentUser(selectedUser.uid) && (
+                <>
+                  <div className="divider my-2" />
+                  <div className="modal-action gap-2">
+                    <button
+                      className="btn flex-1"
+                      onClick={() => setSelectedUser(null)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <form method="dialog" className="modal-backdrop">
@@ -620,7 +699,7 @@ export default function AdminUsers() {
             <h3 className="text-lg font-semibold">{confirmTitle}</h3>
             <p className="text-sm text-base-content/70 mt-1">{confirmMessage}</p>
             <div className="alert alert-warning mt-3">
-              <span>Type CONFIRM to proceed with this destructive action.</span>
+              <span>{confirmPrompt}</span>
             </div>
             <input
               type="text"
@@ -643,7 +722,7 @@ export default function AdminUsers() {
                 Cancel
               </button>
               <button
-                className="btn btn-error"
+                className={`btn ${confirmIntent === 'danger' ? 'btn-error' : 'btn-primary'}`}
                 disabled={confirmSubmitting || confirmInput.trim() !== 'CONFIRM'}
                 onClick={submitTypedConfirm}
               >

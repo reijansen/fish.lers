@@ -42,7 +42,7 @@ const App: React.FC = () => {
       <Route
         path="/chat"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute forbidPending>
             <ChatRoute />
           </ProtectedRoute>
         }
@@ -52,7 +52,7 @@ const App: React.FC = () => {
       <Route
         path="/student"
         element={
-          <ProtectedRoute forbidAdmin>
+          <ProtectedRoute requireStudent>
             <DrawerLayout>
               <PageWithFooter>
                 <HomeStudent />
@@ -65,7 +65,7 @@ const App: React.FC = () => {
       <Route
         path="/requestpage"
         element={
-          <ProtectedRoute forbidAdmin>
+          <ProtectedRoute requireStudent>
             <DrawerLayout>
               <PageWithFooter>
                 <RequestPage />
@@ -78,7 +78,7 @@ const App: React.FC = () => {
       <Route
         path="/tracking"
         element={
-          <ProtectedRoute forbidAdmin>
+          <ProtectedRoute requireStudent>
             <DrawerLayout>
               <PageWithFooter>
                 <TrackingPage />
@@ -91,7 +91,7 @@ const App: React.FC = () => {
       <Route
         path="/accountabilities"
         element={
-          <ProtectedRoute forbidAdmin>
+          <ProtectedRoute requireStudent>
             <DrawerLayout>
               <PageWithFooter>
                 <Accountabilities />
@@ -104,7 +104,7 @@ const App: React.FC = () => {
       <Route
         path="/profile"
         element={
-          <ProtectedRoute forbidAdmin>
+          <ProtectedRoute requireStudent>
             <DrawerLayout>
               <PageWithFooter>
                 <ProfileStudent />

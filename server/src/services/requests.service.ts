@@ -58,14 +58,19 @@ export class RequestService {
       throw new Error("Invalid request: must have startDate and endDate");
     }
 
-    // Verify user exists
+    // Verify user exists and fetch display name
+    let createdByName: string = data.userID;
     try {
-      await getAuth().getUser(data.userID);
+      const user = await getAuth().getUser(data.userID);
+      createdByName = user.displayName || user.email || data.userID;
     } catch {
       throw new Error("User not found");
     }
 
-    const requestID = await RequestRepository.create(data);
+    const requestID = await RequestRepository.create({
+      ...data,
+      createdByName,
+    });
     const request = await RequestRepository.getById(requestID);
 
     if (!request) {
@@ -86,7 +91,7 @@ export class RequestService {
       throw new Error(`Request not found: ${requestID}`);
     }
 
-    return request;
+    return await this.enrichRequestWithUserName(request);
   }
 
   /**
@@ -102,8 +107,9 @@ export class RequestService {
     if (cached) return cached;
 
     const data = await RequestRepository.getAll(status, normalized);
-    this.setCachedList(cacheKey, data);
-    return data;
+    const enriched = await this.enrichRequestsWithUserNames(data);
+    this.setCachedList(cacheKey, enriched);
+    return enriched;
   }
 
   /**
@@ -116,8 +122,9 @@ export class RequestService {
     if (cached) return cached;
 
     const data = await RequestRepository.getPending(normalized);
-    this.setCachedList(cacheKey, data);
-    return data;
+    const enriched = await this.enrichRequestsWithUserNames(data);
+    this.setCachedList(cacheKey, enriched);
+    return enriched;
   }
 
   /**
@@ -133,8 +140,9 @@ export class RequestService {
     if (cached) return cached;
 
     const data = await RequestRepository.getByUserId(userID, normalized);
-    this.setCachedList(cacheKey, data);
-    return data;
+    const enriched = await this.enrichRequestsWithUserNames(data);
+    this.setCachedList(cacheKey, enriched);
+    return enriched;
   }
 
   /**
@@ -161,7 +169,7 @@ export class RequestService {
     }
 
     this.invalidateListCache();
-    return updated;
+    return await this.enrichRequestWithUserName(updated);
   }
 
   /**
@@ -186,7 +194,7 @@ export class RequestService {
     }
 
     this.invalidateListCache();
-    return updated;
+    return await this.enrichRequestWithUserName(updated);
   }
 
   /**
@@ -211,7 +219,7 @@ export class RequestService {
     }
 
     this.invalidateListCache();
-    return updated;
+    return await this.enrichRequestWithUserName(updated);
   }
 
   /**
@@ -246,7 +254,7 @@ export class RequestService {
     }
 
     this.invalidateListCache();
-    return updated;
+    return await this.enrichRequestWithUserName(updated);
   }
 
   /**
@@ -280,7 +288,7 @@ export class RequestService {
     }
 
     this.invalidateListCache();
-    return updated;
+    return await this.enrichRequestWithUserName(updated);
   }
 
   /**
@@ -305,7 +313,7 @@ export class RequestService {
     }
 
     this.invalidateListCache();
-    return updated;
+    return await this.enrichRequestWithUserName(updated);
   }
 
   /**
@@ -330,7 +338,7 @@ export class RequestService {
     }
 
     this.invalidateListCache();
-    return updated;
+    return await this.enrichRequestWithUserName(updated);
   }
 
   /**
@@ -349,6 +357,57 @@ export class RequestService {
 
     await RequestRepository.delete(requestID);
     this.invalidateListCache();
+  }
+
+  /**
+   * Enrich a single request with user display name.
+   */
+  private static async enrichRequestWithUserName(request: Request): Promise<Request> {
+    if (!request.userID || request.createdByName) {
+      return request; // Already enriched or no userID
+    }
+
+    try {
+      const user = await getAuth().getUser(request.userID);
+      return {
+        ...request,
+        createdByName: user.displayName || user.email || request.userID,
+      };
+    } catch (error) {
+      console.warn(`Failed to fetch user ${request.userID}:`, error);
+      return request; // Return as-is if user lookup fails
+    }
+  }
+
+  /**
+   * Enrich multiple requests with user display names.
+   */
+  private static async enrichRequestsWithUserNames(requests: Request[]): Promise<Request[]> {
+    const userIds = new Set<string>();
+    requests.forEach((req) => {
+      if (req.userID && !req.createdByName) {
+        userIds.add(req.userID);
+      }
+    });
+
+    // Fetch all unique users in parallel
+    const userMap = new Map<string, string>();
+    await Promise.all(
+      Array.from(userIds).map(async (uid) => {
+        try {
+          const user = await getAuth().getUser(uid);
+          userMap.set(uid, user.displayName || user.email || uid);
+        } catch (error) {
+          console.warn(`Failed to fetch user ${uid}:`, error);
+        }
+      })
+    );
+
+    // Enrich all requests
+    return requests.map((req) => ({
+      ...req,
+      createdByName: req.createdByName || userMap.get(req.userID) || req.userID,
+    }));
   }
 
   /**

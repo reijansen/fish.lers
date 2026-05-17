@@ -28,6 +28,7 @@ export interface Request {
   returnedAt?: string; // When equipment was returned
   createdAt?: string;
   updatedAt?: string;
+  createdByName?: string; // Student's display name
 }
 
 /**

@@ -11,8 +11,9 @@ export interface User {
   email: string;
   displayName?: string;
   photoURL?: string;
-  role: "student" | "admin";
+  role: "student" | "admin" | "admin-pending";
   isSuperAdmin?: boolean;
+  requestedAdmin?: boolean;
 }
 
 type AuthContextType = {
@@ -50,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissionNotice, setPermissionNotice] = useState<string | null>(null);
   const lastPermissionSignature = useRef<{
     uid: string;
-    role: "student" | "admin";
+    role: "student" | "admin" | "admin-pending";
     adminClaim: boolean;
     superAdminClaim: boolean;
   } | null>(null);
@@ -150,7 +151,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 ? "Claim: Admin"
                 : "Claim: Student"
             );
-            if (roleClaimMismatch || superClaimMismatch) {
+            
+            // Check for pending admin request
+            if ((userData as any).requestedAdmin === true || userData.role === "admin-pending") {
+              setPermissionNotice(
+                "Your admin access request is pending approval from a super administrator. You won’t be able to access student/admin features until approved."
+              );
+            } else if (roleClaimMismatch || superClaimMismatch) {
               setPermissionNotice(
                 "Permissions were updated for this account. Please re-login to refresh your token and apply access changes."
               );

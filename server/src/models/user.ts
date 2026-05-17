@@ -6,7 +6,7 @@ export interface User {
   uid: string; // Firebase UID
   email: string;
   displayName?: string;
-  role: "student" | "admin"; // Student or admin role
+  role: "student" | "admin" | "admin-pending"; // Student, admin, or pending admin approval
   isSuperAdmin?: boolean; // Higher-privilege admin that can override admin decisions
   requestedAdmin?: boolean; // Pending admin request awaiting super-admin approval
   createdAt?: string;

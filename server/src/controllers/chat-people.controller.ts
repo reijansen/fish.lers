@@ -5,7 +5,7 @@ type Person = {
   uid: string;
   displayName?: string;
   email: string;
-  role: "student" | "admin";
+  role: "student" | "admin" | "admin-pending";
   isSuperAdmin?: boolean;
 };
 

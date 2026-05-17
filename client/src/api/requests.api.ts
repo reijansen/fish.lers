@@ -40,6 +40,7 @@ export interface Request {
   returnedAt?: string;
   createdAt?: string;
   updatedAt?: string;
+  createdByName?: string;
 }
 
 interface ListOptions {

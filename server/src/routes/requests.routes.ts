@@ -19,6 +19,9 @@ router.get("/pending", requireAuth, requireAdmin, RequestController.getPending);
 router.get("/user/:uid", requireAuth, RequestController.getByUser);
 router.get("/:id", requireAuth, RequestController.getRequest);
 
+// Batch endpoints
+router.post("/batch/user-names", requireAuth, RequestController.batchGetUserNames);
+
 // Create endpoint (require auth)
 router.post("/", requireAuth, RequestController.createRequest);
 

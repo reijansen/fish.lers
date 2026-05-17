@@ -141,4 +141,20 @@ export class AuthController {
       res.status(400).json({ success: false, error: error.message });
     }
   }
+
+  /**
+   * GET /api/auth/admin/users
+   * Get all users with admin role or pending admin requests (admin only).
+   */
+  static async getAdminAndPendingUsers(req: Request, res: Response): Promise<void> {
+    try {
+      console.log(`[AuthController] Getting admin and pending users...`);
+      const users = await AuthService.getAllAdminAndPending();
+      console.log(`[AuthController] ✅ Returning ${users.length} admin/pending users`);
+      res.status(200).json({ success: true, data: users });
+    } catch (error: any) {
+      console.error(`[AuthController] ❌ Error getting admin users:`, error.message);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
 }

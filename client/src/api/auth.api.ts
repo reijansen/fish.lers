@@ -15,8 +15,9 @@ export interface User {
   uid: string;
   email: string;
   displayName?: string;
-  role: "student" | "admin";
+  role: "student" | "admin" | "admin-pending";
   isSuperAdmin?: boolean;
+  requestedAdmin?: boolean;
   createdAt?: string;
   updatedAt?: string;
   isActive?: boolean;
@@ -123,6 +124,31 @@ export async function deactivateUser(uid: string): Promise<void> {
   await apiPost(`/api/auth/${uid}/deactivate`, {});
 }
 
+/**
+ * Get all users with admin role or pending admin requests (admin only).
+ * GET /api/auth/admin/users
+ * Returns: array of User objects
+ */
+export async function getAdminAndPendingUsers(): Promise<User[]> {
+  try {
+    console.log(`[Auth API] Fetching admin and pending users...`);
+    const data = await apiGet<User[]>("/api/auth/admin/users");
+    console.log(`[Auth API] ✅ Received ${data.length} admin/pending users`);
+    if (data.length > 0) {
+      console.log(`[Auth API] Sample users:`, data.slice(0, 2).map(u => ({
+        uid: u.uid.substring(0, 8),
+        role: u.role,
+        requestedAdmin: u.requestedAdmin,
+        email: u.email
+      })));
+    }
+    return data;
+  } catch (error: any) {
+    console.error(`[Auth API] ❌ Error fetching admin users:`, error.message);
+    throw error;
+  }
+}
+
 export default {
   signup,
   verifyToken,
@@ -131,4 +157,5 @@ export default {
   setUserRole,
   setSuperAdmin,
   deactivateUser,
+  getAdminAndPendingUsers,
 };

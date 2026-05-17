@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
 import { useAuth } from "../hooks/useAuth";
+import { useChat } from "../context/ChatContext";
 import { Home, FilePlus, ClipboardList, MapPin, LogOut, PanelLeftClose, PanelLeftOpen, Fish, MessageCircle } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
@@ -16,9 +17,15 @@ const DrawerLayout: React.FC<DrawerLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, claimRoleLabel, permissionNotice, dismissPermissionNotice } = useAuth();
+  const { unreadCounts } = useChat();
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Calculate total unread count
+  const totalUnreadCount = useMemo(() => {
+    return Object.values(unreadCounts).reduce((sum, count) => sum + (count || 0), 0);
+  }, [unreadCounts]);
 
   // Check if on large screen (drawer always open)
   const [isLargeScreen, setIsLargeScreen] = useState(window.innerWidth >= 1024);
@@ -136,13 +143,20 @@ const DrawerLayout: React.FC<DrawerLayoutProps> = ({ children }) => {
           {/* Menu items */}
           <ul className="menu w-full flex-1 min-h-0 gap-1 p-2 overflow-y-auto lg:overflow-y-visible overflow-x-visible is-drawer-close:items-center">
             {menuItems.map((item, index) => (
-              <li key={index} className="is-drawer-close:w-auto">
+              <li key={index} className="is-drawer-close:w-auto relative">
                 <button
                   className={`flex items-center gap-3 is-drawer-close:tooltip is-drawer-close:tooltip-right is-drawer-close:justify-center is-drawer-close:px-3 ${item.active ? "active" : ""}`}
                   data-tip={item.text}
                   onClick={() => navigate(item.path)}
                 >
-                  <span className="shrink-0">{item.icon}</span>
+                  <span className="shrink-0 relative">
+                    {item.icon}
+                    {item.text === "Chat" && totalUnreadCount > 0 && (
+                      <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold">
+                        {totalUnreadCount > 9 ? "9+" : totalUnreadCount}
+                      </span>
+                    )}
+                  </span>
                   <span className="is-drawer-close:hidden whitespace-nowrap">{item.text}</span>
                 </button>
               </li>

@@ -20,6 +20,7 @@ router.get("/me", requireAuth, AuthController.getCurrentUser);
 router.patch("/profile", requireAuth, AuthController.updateProfile);
 
 // Admin-only endpoints
+router.get("/admin/users", requireAuth, requireAdmin, AuthController.getAdminAndPendingUsers);
 router.post("/:uid/set-role", requireAuth, requireSuperAdmin, AuthController.setUserRole);
 router.post("/:uid/set-super-admin", requireAuth, requireSuperAdmin, AuthController.setSuperAdmin);
 router.post("/:uid/deactivate", requireAuth, requireAdmin, AuthController.deactivateUser);

@@ -1,9 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User profile docs: owner can read/write, admins can list
+    // User profile docs: owner can create/read/update/delete their own doc.
+    // Admins can list users (for admin management screens).
     match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow create, read, update, delete: if request.auth != null && request.auth.uid == userId;
       allow list: if request.auth != null && request.auth.token.admin == true;
     }
 
@@ -16,15 +17,6 @@ service cloud.firestore {
     match /public/{docId} {
       allow read: if true;
       allow write: if request.auth != null;
-    }
-  }
-}
-// firestore.rules
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{doc=**} {
-      allow read, write: if request.auth != null;
     }
   }
 }

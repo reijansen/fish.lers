@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { RequestService } from "../services/requests.service.js";
+import { getAuth } from "../config/firebase.js";
 
 /**
  * Request Controller.
@@ -227,6 +228,39 @@ export class RequestController {
       res.status(200).json({ success: true, message: "Request deleted" });
     } catch (error: any) {
       res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  /**
+   * POST /api/requests/batch/user-names
+   * Get display names for multiple user IDs.
+   * Body: { userIds: string[] }
+   */
+  static async batchGetUserNames(req: Request, res: Response): Promise<void> {
+    try {
+      const { userIds } = req.body;
+      if (!Array.isArray(userIds) || userIds.length === 0) {
+        res.status(400).json({ success: false, error: "userIds must be a non-empty array" });
+        return;
+      }
+
+      const nameMap: Record<string, string> = {};
+      const auth = getAuth();
+
+      await Promise.all(
+        userIds.map(async (uid: string) => {
+          try {
+            const user = await auth.getUser(uid);
+            nameMap[uid] = user.displayName || user.email || uid;
+          } catch (error) {
+            nameMap[uid] = uid; // Fallback to UID if user not found
+          }
+        })
+      );
+
+      res.status(200).json({ success: true, data: nameMap });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
     }
   }
 }

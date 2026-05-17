@@ -9,6 +9,7 @@ export function formatRoleLabel(role: BasicRole, isSuperAdmin = false): string {
   const normalized = String(role || "").trim().toLowerCase();
   if (normalized === "admin") return "Admin";
   if (normalized === "student") return "Student";
+  if (normalized === "admin-pending") return "Admin (Pending Approval)";
   if (!normalized) return "Student";
 
   // Fallback for unexpected role strings.
