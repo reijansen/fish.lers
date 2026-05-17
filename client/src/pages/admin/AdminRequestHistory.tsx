@@ -641,14 +641,14 @@ const AdminRequestHistory: React.FC = () => {
               <div className="card bg-base-100 border border-base-300 shadow">
                 <div className="card-body p-0">
                   <div className="overflow-x-auto">
-                    <table className="table w-full min-w-[720px]">
+                    <table className="table table-fixed w-full min-w-[720px]">
                       <thead>
                         <tr>
-                          <th>Request</th>
-                          <th>Requester</th>
-                          <th>Date of Usage</th>
-                          <th>Items</th>
-                          <th>Status</th>
+                          <th className="w-[32%]">Request</th>
+                          <th className="w-[22%]">Requester</th>
+                          <th className="w-[20%]">Date of Usage</th>
+                          <th className="w-[14%]">Items</th>
+                          <th className="w-[12%]">Status</th>
                         </tr>
                       </thead>
                       <tbody>
