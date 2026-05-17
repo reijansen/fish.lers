@@ -27,3 +27,6 @@ dist-ssr
 .env
 client/.env
 server/.env
+
+.vercel
+.env*.local
