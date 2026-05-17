@@ -262,7 +262,7 @@ const AdminDashboard: React.FC = () => {
 
   useEffect(() => {
     setLoading(true);
-    const q = query(collection(db, "requests"), orderBy("createdAt", "desc"), limit(20));
+      const q = query(collection(db, "requests"), orderBy("createdAt", "desc"));
     const unsub = onSnapshot(q, async (snap) => {
       try {
         const data = snap.docs.map((docSnap) => ({
@@ -270,8 +270,12 @@ const AdminDashboard: React.FC = () => {
           ...docSnap.data(),
         })) as Request[];
 
-        const uids = Array.from(new Set(data.map((d: any) => d.createdBy).filter(Boolean)));
+        const getRequesterId = (d: any): string | undefined =>
+          d?.createdBy || d?.userID || d?.studentId || d?.studentID || undefined;
+
+        const uids = Array.from(new Set(data.map((d: any) => getRequesterId(d)).filter(Boolean) as string[]));
         const missingUids = uids.filter((uid) => !userNameCacheRef.current[uid]);
+
         if (missingUids.length > 0) {
           await Promise.all(
             missingUids.map(async (uid) => {
@@ -291,12 +295,15 @@ const AdminDashboard: React.FC = () => {
           );
         }
 
-        const enriched = data.map((d) => ({
-          ...d,
-          createdByName: (d as any).createdBy
-            ? userNameCacheRef.current[(d as any).createdBy] || (d as any).createdBy
-            : undefined,
-        }));
+        const enriched = data.map((d) => {
+          const requesterId = getRequesterId(d);
+          return {
+            ...d,
+            createdByName: requesterId ? userNameCacheRef.current[requesterId] || requesterId : undefined,
+            createdBy: d?.createdBy || requesterId, // normalize so the rest of the UI fallback still works
+          };
+        });
+
         setRequests(enriched as Request[]);
       } catch (error) {
         console.error("Error processing requests snapshot:", error);
