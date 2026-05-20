@@ -104,6 +104,10 @@ export default function HomeStudent() {
         duration,
         totalQuantity,
         itemsList,
+        startDate: req.startDate,
+        endDate: req.endDate,
+        start: req.start,
+        end: req.end,
       }
     })
 
@@ -512,11 +516,11 @@ export default function HomeStudent() {
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'pending' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('pending')}>
                 Pending ({pendingCount})
               </a>
-              <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'ongoing' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('ongoing')}>
-                Ongoing ({ongoingCount})
-              </a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'approved' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('approved')}>
                 Approved ({approvedCount})
+              </a>
+              <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'ongoing' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('ongoing')}>
+                Ongoing ({ongoingCount})
               </a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'completed' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('completed')}>
                 Completed ({completedCount})
@@ -674,28 +678,17 @@ export default function HomeStudent() {
                           >
                             <Copy className="w-3 h-3" />
                           </button>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => openRequestDetails(r.requestId)}
-                          >
-                            Details
-                          </button>
+                          
                         </div>
                       </td>
                       <td>{getStatusBadge(r)}</td>
                       <td>
-                        {r.remarks ? (
-                          <button 
-                            className="btn btn-ghost btn-sm gap-1" 
-                            onClick={() => { setShowRemarksText(r.remarks); setShowRemarksOpen(true); }}
-                          >
-                            <Eye className="w-4 h-4" />
-                            View
-                          </button>
-                        ) : (
-                          <span className="text-sm text-base-content/40">—</span>
-                        )}
+                        <button
+                          className="btn btn-ghost btn-xs"
+                          onClick={() => openRequestDetails(r.requestId)}
+                        >
+                          Details
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -785,8 +778,25 @@ export default function HomeStudent() {
             </div>
             
             <div className="modal-action">
-              <button className="btn" onClick={() => setShowModalRequest(null)}>Close</button>
+              {(showModalRequest.status || '').toLowerCase() === 'approved' && (
+                <button
+                  className="btn btn-success gap-2"
+                  onClick={() => handleReturn(showModalRequest.id)}
+                  disabled={busyId === showModalRequest.id}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  {busyId === showModalRequest.id ? 'Returning...' : 'Return Equipment'}
+                </button>
+              )}
+
+              <button
+                className="btn"
+                onClick={() => setShowModalRequest(null)}
+              >
+                Close
+              </button>
             </div>
+
           </div>
           <form method="dialog" className="modal-backdrop">
             <button onClick={() => setShowModalRequest(null)}>close</button>
