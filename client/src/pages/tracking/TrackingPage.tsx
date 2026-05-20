@@ -249,11 +249,11 @@ export default function TrackingPage(){
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'pending' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('pending')}>
                 Pending ({pendingCount})
               </a>
-              <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'ongoing' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('ongoing')}>
-                Ongoing ({ongoingCount})
-              </a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'approved' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('approved')}>
                 Approved ({approvedCount})
+              </a>
+              <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'ongoing' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('ongoing')}>
+                Ongoing ({ongoingCount})
               </a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'completed' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('completed')}>
                 Completed ({completedCount})

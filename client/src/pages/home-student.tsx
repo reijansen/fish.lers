@@ -13,6 +13,7 @@ import MobileStatsPager from '../components/MobileStatsPager';
 import { useRequests } from '../hooks/useRequests'
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import { useAnnouncements } from '../hooks/useAnnouncements';
+import ConfirmDialog from '../components/confirmDialog';
 
 function formatDate(d: Date) {
   return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -49,6 +50,16 @@ export default function HomeStudent() {
   const [showAllCount, setShowAllCount] = React.useState(5)
   const [showRemarksText, setShowRemarksText] = React.useState('')
   const [showRemarksOpen, setShowRemarksOpen] = React.useState(false)
+
+  const openConfirm = (
+    title: string,
+    message: string,
+    action: () => Promise<void> | void,
+    confirmClass = "btn-primary"
+  ) => {
+    setConfirmData({ title, message, action, confirmClass });
+    setConfirmOpen(true);
+  };
 
   React.useEffect(() => {
     if (!trackingRequests || trackingRequests.length === 0) {
@@ -172,37 +183,59 @@ export default function HomeStudent() {
     }
   }
 
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+  const [confirmData, setConfirmData] = React.useState<{
+    title: string;
+    message: string;
+    action: () => Promise<void> | void;
+    confirmClass?: string;
+  } | null>(null);
+
   async function handleCancel(requestId: string) {
-    if (!confirm('Cancel this request? This will mark it as cancelled.')) return
-    try {
-      setBusyId(requestId)
-      await updateDoc(docRef(db, 'requests', requestId), {
-        status: 'cancelled',
-        cancelledAt: serverTimestamp(),
-      })
-      // snapshot will update the UI automatically
-    } catch (e) {
-      console.error('Failed to cancel request', e)
-      setAlertMessage('Failed to cancel request. Please try again.')
-    } finally {
-      setBusyId(null)
-    }
+    // if (!confirm('Cancel this request? This will mark it as cancelled.')) return
+    openConfirm(
+      "Cancel Request",
+      "Cancel this request? This will mark it as cancelled.",
+      async () => {
+        try {
+          setBusyId(requestId);
+          await updateDoc(docRef(db, 'requests', requestId), {
+            status: 'cancelled',
+            cancelledAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.error('Failed to cancel request', e);
+          setAlertMessage('Failed to cancel request. Please try again.');
+        } finally {
+          setBusyId(null);
+        }
+      },
+      "btn-error"
+    );
   }
 
   async function handleReturn(requestId: string) {
-    if (!confirm('Mark this request as returned? This will mark the item(s) as returned.')) return
-    try {
-      setBusyId(requestId)
-      await updateDoc(docRef(db, 'requests', requestId), {
-        status: 'returned',
-        returnedAt: serverTimestamp(),
-      })
-    } catch (e) {
-      console.error('Failed to mark request returned', e)
-      setAlertMessage('Failed to mark returned. Please try again.')
-    } finally {
-      setBusyId(null)
-    }
+    // if (!confirm('Mark this request as returned? This will mark the item(s) as returned.')) return
+    openConfirm(
+      "Return Equipment",
+      "Mark this request as returned?",
+      async () => {
+        try {
+          setBusyId(requestId);
+          await updateDoc(docRef(db, 'requests', requestId), {
+            status: 'returned',
+            returnedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.error('Failed to mark request returned', e);
+          setAlertMessage('Failed to mark returned. Please try again.');
+        } finally {
+          setBusyId(null);
+        }
+      },
+      "btn-success"
+    );
   }
 
   // mark current statuses as seen (store in localStorage)
@@ -810,6 +843,17 @@ export default function HomeStudent() {
                 </button>
               )}
 
+              {(showModalRequest.status || '').toLowerCase() === 'pending' && (
+                <button
+                  className="btn btn-error gap-2"
+                  onClick={() => handleCancel(showModalRequest.id)}
+                  disabled={busyId === showModalRequest.id}
+                >
+                  <XCircle className="w-4 h-4" />
+                  {busyId === showModalRequest.id ? 'Cancelling...' : 'Cancel Request'}
+                </button>
+              )}
+
               <button
                 className="btn"
                 onClick={() => setShowModalRequest(null)}
@@ -908,7 +952,23 @@ export default function HomeStudent() {
           </form>
         </dialog>
       )}
+      
     </div>
+    <ConfirmDialog
+      open={confirmOpen}
+      title={confirmData?.title}
+      message={confirmData?.message || ""}
+      confirmClass={confirmData?.confirmClass}
+      onCancel={() => {
+        setConfirmOpen(false);
+        setConfirmData(null);
+      }}
+      onConfirm={async () => {
+        await confirmData?.action();
+        setConfirmOpen(false);
+        setConfirmData(null);
+      }}
+    />
     </>
   );
 }
