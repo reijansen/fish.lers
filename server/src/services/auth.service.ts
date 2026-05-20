@@ -232,7 +232,7 @@ export class AuthService {
     ]);
 
     console.log(
-      `[AdminService] Retrieved ${admins.length} admins and ${pending.length} pending admin requests`
+      `[AdminService] Retrieved ${admins.length} admins, ${pending.length} pending admin requests, and ${pendingRole.length} admin-pending users`
     );
 
     // Merge and de-duplicate by UID.
@@ -259,7 +259,11 @@ export class AuthService {
       const createdAt =
         toIsoStringIfTimestamp((user as any).createdAt) || new Date().toISOString();
       const updatedAt = toIsoStringIfTimestamp((user as any).updatedAt);
-      const requestedAdmin = (user as any).requestedAdmin === true;
+      
+      // If user has role "admin-pending", they are requesting admin access
+      // If user has requestedAdmin flag, ensure it's true
+      // This handles cases where one field might be missing due to client-side or sync issues
+      const requestedAdmin = (user as any).requestedAdmin === true || user.role === "admin-pending";
 
       return {
         ...user,

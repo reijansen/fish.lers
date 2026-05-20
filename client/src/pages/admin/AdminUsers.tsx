@@ -63,6 +63,10 @@ export default function AdminUsers() {
           
           // Include all returned users from API
           if (data && data.uid) {
+            // Ensure requestedAdmin is true for users with admin-pending role
+            // This handles cases where the field might be missing from the response
+            const isRequestingAdmin = data.requestedAdmin === true || data.role === 'admin-pending';
+            
             const userData = {
               uid: data.uid,
               displayName: data.displayName || '',
@@ -70,14 +74,15 @@ export default function AdminUsers() {
               role: data.role || 'student',
               isSuperAdmin: !!data.isSuperAdmin,
               createdAt: data.createdAt,
-              requestedAdmin: !!data.requestedAdmin,
+              requestedAdmin: isRequestingAdmin,
               studentNumber: data.studentNumber || '',
               staffId: data.staffId || '',
             }
-            if (data.requestedAdmin) {
+            if (isRequestingAdmin) {
               console.log(`[AdminUsers] Found requesting admin user:`, { 
                 uid: data.uid.substring(0, 8),
                 email: data.email,
+                role: data.role,
                 requestedAdmin: data.requestedAdmin 
               })
             }
@@ -86,8 +91,15 @@ export default function AdminUsers() {
         })
         
         list.sort((a, b) => {
+          // Prioritize pending admin requests first
+          if (a.requestedAdmin && !b.requestedAdmin) return -1
+          if (!a.requestedAdmin && b.requestedAdmin) return 1
+          
+          // Then admins (including super admins)
           if (a.role === 'admin' && b.role !== 'admin') return -1
           if (a.role !== 'admin' && b.role === 'admin') return 1
+          
+          // Within same role, sort by email
           return (a.email || '').localeCompare(b.email || '')
         })
         
