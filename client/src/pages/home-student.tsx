@@ -610,7 +610,7 @@ export default function HomeStudent() {
 
           {/* Desktop table */}
           <div className="hidden lg:block overflow-x-auto">
-            <table className="table min-w-[720px]">
+            <table className="table min-w-[820px]">
               <thead>
                 <tr>
                   <th>Purpose</th>
@@ -644,6 +644,8 @@ export default function HomeStudent() {
                       id={`req-${r.requestId}`}
                       className={`hover ${highlightedId === r.requestId ? 'bg-primary/20 animate-pulse' : ''}`}
                     >
+
+                      {/* Purpose */}
                       <td className="max-w-md">
                         <div className="font-medium">{r.purpose || 'Untitled Request'}</div>
                         {r.duration && (
@@ -653,6 +655,8 @@ export default function HomeStudent() {
                           </div>
                         )}
                       </td>
+
+                      {/* Quantity */}
                       <td>
                         {r.itemsList ? (
                           <div className="tooltip" data-tip={r.itemsList}>
@@ -666,28 +670,39 @@ export default function HomeStudent() {
                           </span>
                         )}
                       </td>
+
+                      {/* Status */}
                       <td>
-                        <div className="flex items-center gap-2">
-                          <code className="text-xs bg-base-300 px-2 py-1 rounded font-mono">
-                            {r.requestId?.slice(0, 8)}...
-                          </code>
-                          <button
-                            className="btn btn-ghost btn-xs btn-circle tooltip"
-                            data-tip={copiedId === r.requestId ? 'Copied!' : 'Copy ID'}
-                            onClick={() => copyToClipboard(r.requestId)}
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                          
-                        </div>
+                        {getStatusBadge(r)}
                       </td>
-                      <td>{getStatusBadge(r)}</td>
+
+                      {/* Action */}
+                      <td>
+                        {(r.status || '').toLowerCase() === 'approved' ? (
+                          <button
+                            className="btn btn-success btn-sm gap-2"
+                            onClick={() => handleReturn(r.requestId)}
+                            disabled={busyId === r.requestId}
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            {busyId === r.requestId
+                              ? 'Returning...'
+                              : 'Return'}
+                          </button>
+                        ) : (
+                          <span className="text-base-content/40 text-sm">
+                            —
+                          </span>
+                        )}
+                      </td>
+
+                      {/* View */}
                       <td>
                         <button
-                          className="btn btn-ghost btn-xs"
+                          className="btn btn-ghost btn-sm btn-circle"
                           onClick={() => openRequestDetails(r.requestId)}
                         >
-                          Details
+                          <Eye className='w-4 h-4' />
                         </button>
                       </td>
                     </tr>
