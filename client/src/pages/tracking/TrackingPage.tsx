@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useRequests } from '../../hooks/useRequests'
 import { isOngoing } from "../../utils/requestTime"
 import { logicEquipment } from '../equipment/logicEquipment'
-import { MapPin, Clock, CheckCircle, XCircle, AlertCircle, FileText, X, Eye, Copy, RotateCcw } from 'lucide-react'
+import { MapPin, Clock, CheckCircle, XCircle, AlertCircle, FileText, X, Eye, Copy, RotateCcw, Timer } from 'lucide-react'
 import MobileStatsPager from '../../components/MobileStatsPager'
 
 export default function TrackingPage(){
@@ -154,7 +154,7 @@ export default function TrackingPage(){
   const getStatusBadge = (r: any) => {
     const s = (r.status || '').toLowerCase()
 
-    if (s === 'approved' && isOngoing(r)) return <span className="badge badge-warning gap-1"><Clock className="w-3 h-3" />Ongoing</span>
+    if (s === 'approved' && isOngoing(r)) return <span className="badge badge-success gap-1"><Clock className="w-3 h-3" />Ongoing</span>
     if (s === 'approved' && !isOngoing(r)) return <span className="badge badge-success gap-1"><CheckCircle className="w-3 h-3" />Approved</span>
     if (s === 'pending') return <span className="badge badge-warning gap-1"><Clock className="w-3 h-3" />Pending</span>
     if (s === 'declined' || s === 'rejected') return <span className="badge badge-error gap-1"><XCircle className="w-3 h-3" />Declined</span>
@@ -198,38 +198,38 @@ export default function TrackingPage(){
           { label: "Total", value: rows.length },
           { label: "Pending", value: pendingCount, colorClass: "text-warning" },
           { label: "Approved", value: approvedCount, colorClass: "text-success" },
+          { label: "Ongoing", value: ongoingCount, colorClass: "text-success"},
+          { label: "Completed", value: completedCount, colorClass: "text-success" },
           { label: "Declined", value: declinedCount, colorClass: "text-error" },
         ]}
       />
       <div className="hidden sm:flex stats stats-horizontal shadow bg-base-200 w-full">
         <div className="stat">
-          <div className="stat-figure text-primary">
-            <FileText className="w-8 h-8" />
-          </div>
           <div className="stat-title">Total Requests</div>
           <div className="stat-value">{rows.length}</div>
           
         </div>
         <div className="stat">
-          <div className="stat-figure text-warning">
-            <Clock className="w-8 h-8" />
-          </div>
           <div className="stat-title">Pending</div>
           <div className="stat-value text-warning">{pendingCount}</div>
           
         </div>
         <div className="stat">
-          <div className="stat-figure text-success">
-            <CheckCircle className="w-8 h-8" />
-          </div>
           <div className="stat-title">Approved</div>
           <div className="stat-value text-success">{approvedCount}</div>
           
         </div>
         <div className="stat">
-          <div className="stat-figure text-error">
-            <XCircle className="w-8 h-8" />
-          </div>
+          <div className="stat-title">Ongoing</div>
+          <div className="stat-value text-success">{ongoingCount}</div>
+          
+        </div>
+        <div className="stat">
+          <div className="stat-title">Completed</div>
+          <div className="stat-value text-success">{completedCount}</div>
+          
+        </div>
+        <div className="stat">
           <div className="stat-title">Declined</div>
           <div className="stat-value text-error">{declinedCount}</div>
           

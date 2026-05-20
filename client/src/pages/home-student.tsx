@@ -7,7 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { db } from '../firebase';
 import { isOngoing } from "../utils/requestTime"
 import { collection, query, orderBy, limit, onSnapshot, where, doc as docRef, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { Bell, X, Eye, XCircle, RotateCcw, Copy, MapPin, Clock } from 'lucide-react';
+import { Bell, X, Eye, XCircle, RotateCcw, Copy, MapPin, Clock, CheckCircle } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
 import MobileStatsPager from '../components/MobileStatsPager';
 import { useRequests } from '../hooks/useRequests'
@@ -239,12 +239,12 @@ export default function HomeStudent() {
   // Status badge helper
   const getStatusBadge = (r: any) => {
     const s = (r.status || '').toLowerCase();
-    if (s === 'approved' && isOngoing(r)) return <span className="badge badge-success">Ongoing</span>;
-    if (s === 'approved' && !isOngoing(r)) return <span className="badge badge-success">Approved</span>;
-    if (s === 'pending') return <span className="badge badge-warning">Pending</span>;
-    if (s === 'declined' || s === 'rejected') return <span className="badge badge-error">Rejected</span>;
-    if (s === 'returned' || s === 'completed') return <span className="badge badge-info">Completed</span>;
-    if (s === 'cancelled') return <span className="badge badge-neutral">Cancelled</span>;
+    if (s === 'approved' && isOngoing(r)) return <span className="badge badge-success gap-1"><Clock className="w-3 h-3" />Ongoing</span>
+    if (s === 'approved' && !isOngoing(r)) return <span className="badge badge-success gap-1"><CheckCircle className="w-3 h-3" />Approved</span>
+    if (s === 'pending') return <span className="badge badge-warning gap-1"><Clock className="w-3 h-3" />Pending</span>
+    if (s === 'declined' || s === 'rejected') return <span className="badge badge-error gap-1"><XCircle className="w-3 h-3" />Declined</span>
+    if (s === 'returned' || s === 'completed') return <span className="badge badge-info gap-1"><RotateCcw className="w-3 h-3" />Returned</span>
+    if (s === 'cancelled') return <span className="badge badge-neutral gap-1">Cancelled</span>
     return <span className="badge">{r.status}</span>;
   };
 
@@ -464,6 +464,7 @@ export default function HomeStudent() {
           { label: "Total", value: trackingRequests.length },
           { label: "Pending", value: trackingRequests.filter(r => (r.status).toLowerCase() === 'pending').length, colorClass: "text-warning" },
           { label: "Approved", value: trackingRequests.filter(r => r.status?.toLowerCase() === 'approved').length, colorClass: "text-success" },
+          { label: "Ongoing", value: trackingRequests.filter(r => r.status?.toLowerCase() === 'approved' && isOngoing(r)).length, colorClass: "text-success" },
           { label: "Completed", value: trackingRequests.filter(r => ['completed', 'returned'].includes((r.status || '').toLowerCase())).length, colorClass: "text-info" },
           { label: "Accountabilities", value: accountabilities.filter(a => { const s = (a.status || '').toLowerCase(); return s !== 'resolved' && s !== 'completed'; }).length, colorClass: "text-error" },
         ]}
@@ -483,6 +484,11 @@ export default function HomeStudent() {
           <div className="stat-title">Approved</div>
           <div className="stat-value text-success">{trackingRequests.filter(r => r.status?.toLowerCase() === 'approved').length}</div>
           
+        </div>
+        <div className="stat">
+          <div className="stat-title">Ongoing</div>
+          <div className="stat-value text-success">{trackingRequests.filter(r => r.status?.toLowerCase() === 'approved' && isOngoing(r)).length}</div>
+      
         </div>
         <div className="stat">
           <div className="stat-title">Completed</div>
