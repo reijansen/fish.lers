@@ -78,7 +78,7 @@ export class UserRepository {
       .collection(USERS_COLLECTION)
       .where("role", "==", "admin")
       .get();
-    return snapshot.docs.map((doc) => doc.data() as User);
+    return snapshot.docs.map((doc) => ({ ...(doc.data() as User), uid: (doc.data() as any).uid || doc.id }));
   }
 
   /**
@@ -90,7 +90,7 @@ export class UserRepository {
       .collection(USERS_COLLECTION)
       .where("role", "==", "admin-pending")
       .get();
-    return snapshot.docs.map((doc) => doc.data() as User);
+    return snapshot.docs.map((doc) => ({ ...(doc.data() as User), uid: (doc.data() as any).uid || doc.id }));
   }
 
   /**
@@ -103,7 +103,7 @@ export class UserRepository {
       .collection(USERS_COLLECTION)
       .where("requestedAdmin", "==", true)
       .get();
-    return snapshot.docs.map((doc) => doc.data() as User);
+    return snapshot.docs.map((doc) => ({ ...(doc.data() as User), uid: (doc.data() as any).uid || doc.id }));
   }
 
   /**

@@ -61,14 +61,15 @@ export default function AdminUsers() {
             // Don't return - super admins should still appear in the list if role is 'admin'
           }
           
-          // Include all returned users from API
-          if (data && data.uid) {
+          // Include all returned users from API (be resilient to legacy records missing uid field).
+          const uid = data?.uid || data?.id
+          if (data && uid) {
             // Ensure requestedAdmin is true for users with admin-pending role
             // This handles cases where the field might be missing from the response
             const isRequestingAdmin = data.requestedAdmin === true || data.role === 'admin-pending';
             
             const userData = {
-              uid: data.uid,
+              uid,
               displayName: data.displayName || '',
               email: data.email || '',
               role: data.role || 'student',
@@ -80,7 +81,7 @@ export default function AdminUsers() {
             }
             if (isRequestingAdmin) {
               console.log(`[AdminUsers] Found requesting admin user:`, { 
-                uid: data.uid.substring(0, 8),
+                uid: String(uid).substring(0, 8),
                 email: data.email,
                 role: data.role,
                 requestedAdmin: data.requestedAdmin 
@@ -109,6 +110,11 @@ export default function AdminUsers() {
         setLoading(false)
       } catch (error) {
         console.error('[AdminUsers] ❌ Failed to load users', error)
+        const message =
+          (error as any)?.message ||
+          'Failed to load admin and pending users. Check your server, auth token, and permissions.'
+        setAlertType('error')
+        setAlertMessage(message)
         setLoading(false)
       }
     }

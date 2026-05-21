@@ -69,7 +69,6 @@ export async function requireAuth(
   } catch (firebaseError: any) {
     console.warn("⚠️ Firebase auth failed, trying MongoDB fallback...");
     console.error("Auth error:", firebaseError.message);
-    res.status(401).json({ error: "Invalid or expired token" });
   }
   
   // Fallback: decode JWT manually and look up user in MongoDB
@@ -105,7 +104,7 @@ export async function requireAuth(
     return next();
   } catch (mongoError: any) {
     console.error("MongoDB auth error:", mongoError.message);
-    return res.status(401).json({ error: "Authentication failed" });
+    return res.status(401).json({ error: "Invalid or expired token" });
   }
 }
 
