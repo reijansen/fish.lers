@@ -549,7 +549,7 @@ export default function Analytics() {
             )}
           </div>
 
-          <div className="w-full lg:w-auto">
+          <div className="w-full lg:w-auto print:hidden">
             <div className="card bg-base-100/70 border border-base-300 shadow-sm">
               <div className="card-body p-3 sm:p-4 gap-3">
                 <div className="flex items-center justify-between gap-2">
