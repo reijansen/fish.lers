@@ -204,6 +204,7 @@ export default function HomeStudent() {
             status: 'cancelled',
             cancelledAt: serverTimestamp(),
           });
+          window.location.reload();
         } catch (e) {
           console.error('Failed to cancel request', e);
           setAlertMessage('Failed to cancel request. Please try again.');
@@ -227,6 +228,7 @@ export default function HomeStudent() {
             status: 'returned',
             returnedAt: serverTimestamp(),
           });
+          window.location.reload();
         } catch (e) {
           console.error('Failed to mark request returned', e);
           setAlertMessage('Failed to mark returned. Please try again.');
