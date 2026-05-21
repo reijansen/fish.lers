@@ -1,67 +1,201 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
+
+    /* =========================
+       Helpers
+    ========================= */
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isAdmin() {
-      return signedIn() && request.auth.token.admin == true;
+    function isAdminClaim() {
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
-    function isSuperAdmin() {
-      return signedIn() && request.auth.token.superAdmin == true;
+    function isSuperAdminClaim() {
+      return isSignedIn() && request.auth.token.superAdmin == true;
+    }
+
+    function isStaffClaim() {
+      return isAdminClaim() || isSuperAdminClaim();
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userRole() {
+      return isSignedIn() && userDoc().exists() ? userDoc().data.role : null;
+    }
+
+    function isStudentRole() {
+      return isSignedIn() && userRole() == "student";
+    }
+
+    function isApprovedAdminRole() {
+      return isSignedIn() && userRole() == "admin";
     }
 
     function roleLabel() {
-      return isSuperAdmin() ? 'superadmin' : isAdmin() ? 'admin' : 'student';
+      return isSuperAdminClaim() ? "superadmin" : isAdminClaim() ? "admin" : "student";
     }
 
-    // User profile docs: owner can create/read/update/delete their own doc.
-    // Admins can list users (for admin management screens).
+    function changedKeysOnly(allowed) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowed);
+    }
+
+    /* =========================
+       USERS
+    ========================= */
     match /users/{userId} {
-      allow create, read, update, delete: if signedIn() && request.auth.uid == userId;
-      allow list: if isAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && (request.auth.uid == userId || isStaffClaim());
+      allow update, delete: if isSignedIn() && request.auth.uid == userId;
+      allow list: if isStaffClaim();
     }
 
-    // Admin-only collection
-    match /adminData/{docId} {
-      allow read, write: if isAdmin();
-    }
-
-    // Public collection example
-    match /public/{docId} {
-      allow read: if true;
-      allow write: if signedIn();
-    }
-
-    // Equipment inventory: any signed-in user can read.
-    match /equipment/{equipmentId} {
-      allow read: if signedIn();
-      allow write: if isAdmin();
-    }
-
-    // Requests: students can create/read their own; admins can read/update all.
+    /* =========================
+       REQUESTS
+    ========================= */
     match /requests/{requestId} {
-      allow create: if signedIn() && request.resource.data.userID == request.auth.uid;
-      allow read: if signedIn() && (resource.data.userID == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
+      allow create: if isStudentRole()
+        && request.resource.data.userID == request.auth.uid
+        && request.resource.data.status == "pending";
+
+      allow read: if isSignedIn() && (
+        (isStudentRole() && resource.data.userID == request.auth.uid) ||
+        isStaffClaim()
+      );
+
+      // Students can only cancel/return their own requests via limited field updates.
+      allow update: if isSignedIn() && (
+        (
+          isStudentRole()
+          && resource.data.userID == request.auth.uid
+          && changedKeysOnly(["status", "cancelledAt", "returnedAt", "updatedAt"])
+          && (request.resource.data.status in ["cancelled", "returned"])
+        )
+        || isStaffClaim()
+      );
+
+      allow delete: if isStaffClaim();
+      allow list: if isStaffClaim();
     }
 
-    // Student accountabilities: student can read their own; admins manage.
+    /* =========================
+       EQUIPMENT + CATEGORIES
+    ========================= */
+    match /equipment/{equipmentId} {
+      allow read, list: if isSignedIn() && (
+        isStudentRole() || isApprovedAdminRole() || isStaffClaim()
+      );
+      allow write: if isStaffClaim();
+    }
+
+    match /equipment_purged/{equipmentId} {
+      allow read, list: if isStaffClaim();
+      allow write: if isStaffClaim();
+    }
+
+    match /categories/{categoryId} {
+      allow read, list: if isSignedIn() && (
+        isStudentRole() || isApprovedAdminRole() || isStaffClaim()
+      );
+      allow write: if isStaffClaim();
+    }
+
+    /* =========================
+       ACCOUNTABILITIES
+       - Students are read-only and only for their own docs.
+       - Admins/superadmins can create/update/delete.
+       - `createdBy == uid` is kept for legacy rows; `studentUid` is the canonical field.
+    ========================= */
     match /accountabilities/{accountabilityId} {
-      allow read: if signedIn() && (resource.data.createdBy == request.auth.uid || isAdmin());
-      allow create, update, delete: if isAdmin();
+      allow read: if isSignedIn() && (
+        (
+          isStudentRole() && (
+            resource.data.studentUid == request.auth.uid ||
+            resource.data.createdBy == request.auth.uid
+          )
+        ) || isStaffClaim()
+      );
+
+      allow list: if isSignedIn() && (isStudentRole() || isStaffClaim());
+      allow create, update, delete: if isStaffClaim();
     }
 
-    // Announcements: signed-in users can read approved + active announcements that include their role.
-    // Only super admins can manage announcements.
+    /* =========================
+       ANNOUNCEMENTS
+       - Students read only approved + active docs visible to their role label.
+       - Admin/superadmin can read all; superadmin manages writes.
+    ========================= */
     match /announcements/{announcementId} {
-      allow read: if signedIn()
-        && resource.data.active == true
-        && resource.data.status == 'approved'
-        && (roleLabel() in resource.data.visibleTo);
-      allow create, update, delete: if isSuperAdmin();
+      allow read: if isSignedIn() && (
+        isStaffClaim()
+        || (
+          isStudentRole()
+          && resource.data.active == true
+          && resource.data.status == "approved"
+          && (resource.data.visibleTo is list)
+          && resource.data.visibleTo.hasAny([roleLabel()])
+        )
+      );
+
+      allow list: if isSignedIn() && (isStudentRole() || isStaffClaim());
+      allow create, update, delete: if isSuperAdminClaim();
+    }
+
+    /* =========================
+       TODOS
+    ========================= */
+    match /todos/{todoId} {
+      allow read, write: if isSignedIn();
+      allow list: if isSignedIn();
+    }
+
+    /* =========================
+       CHAT
+    ========================= */
+    match /chat_conversations/{conversationId} {
+      allow create, update, delete: if false;
+
+      allow read: if isSignedIn() && (
+        isStaffClaim()
+        || (resource.data.participants is list && resource.data.participants.hasAny([request.auth.uid]))
+        || resource.data.studentUID == request.auth.uid
+        || resource.data.adminUID == request.auth.uid
+      );
+
+      allow list: if isStaffClaim();
+
+      match /messages/{messageId} {
+        allow create, update, delete: if false;
+        allow read: if isSignedIn() && (
+          isStaffClaim()
+          || (
+            get(/databases/$(database)/documents/chat_conversations/$(conversationId)).data.participants is list
+            && get(/databases/$(database)/documents/chat_conversations/$(conversationId)).data.participants.hasAny([request.auth.uid])
+          )
+          || get(/databases/$(database)/documents/chat_conversations/$(conversationId)).data.studentUID == request.auth.uid
+          || get(/databases/$(database)/documents/chat_conversations/$(conversationId)).data.adminUID == request.auth.uid
+        );
+      }
+    }
+
+    match /chat_read_state/{readStateId} {
+      allow create, update, delete: if false;
+      allow read: if isSignedIn() && (
+        isStaffClaim() || resource.data.userUID == request.auth.uid
+      );
+      allow list: if isStaffClaim();
+    }
+
+    /* =========================
+       DEFAULT DENY
+    ========================= */
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

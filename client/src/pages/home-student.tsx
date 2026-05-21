@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../firebase';
 import { isOngoing } from "../utils/requestTime"
-import { collection, query, orderBy, limit, onSnapshot, where, doc as docRef, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, limit, onSnapshot, where, doc as docRef, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Bell, X, Eye, XCircle, RotateCcw, Copy, MapPin, Clock } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
 import MobileStatsPager from '../components/MobileStatsPager';
@@ -296,25 +296,23 @@ export default function HomeStudent() {
       })
       setAccountabilities(list)
     }
-    let unsubMain: (() => void) | null = null
-    let unsubFallback: (() => void) | null = null
-    try {
-      const q = query(collection(db, 'accountabilities'), where('createdBy', '==', user.uid), orderBy('dueDate', 'asc'))
-      unsubMain = onSnapshot(q, (snap) => processSnapshot(snap), (err) => {
-        console.error('Student accountabilities snapshot error', err)
-        try {
-          const qf = query(collection(db, 'accountabilities'), where('createdBy', '==', user.uid))
-          unsubFallback = onSnapshot(qf, (snap) => processSnapshot(snap), (err2) => console.error('Student accountabilities fallback error', err2))
-        } catch (e) {
-          console.error('Failed to subscribe accountabilities fallback', e)
+    const q = query(
+      collection(db, 'accountabilities'),
+      where('studentUid', '==', user.uid)
+    )
+    const unsub = onSnapshot(
+      q,
+      (snap) => processSnapshot(snap),
+      (err) => {
+        if (err?.code === 'permission-denied') {
+          console.error('Student accountabilities listener denied by rules:', err)
+          setAlertMessage('Unable to load accountabilities due to permissions. Please re-login or contact admin.')
+          return
         }
-      })
-    } catch (e) {
-      console.error('Failed to subscribe accountabilities main', e)
-      const qf = query(collection(db, 'accountabilities'), where('createdBy', '==', user.uid))
-      unsubFallback = onSnapshot(qf, (snap) => processSnapshot(snap), (err2) => console.error('Student accountabilities fallback error', err2))
-    }
-    return () => { if (unsubMain) unsubMain(); if (unsubFallback) unsubFallback() }
+        console.error('Student accountabilities listener error:', err)
+      }
+    )
+    return () => unsub()
   }, [user])
 
   React.useEffect(() => {

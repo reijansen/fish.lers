@@ -14,9 +14,10 @@ import { requireAuth, requireAdmin, requireSuperAdmin } from "../middleware/auth
 const router = Router();
 
 // List and get endpoints (require auth)
-router.get("/", requireAuth, RequestController.listRequests);
+router.get("/", requireAuth, requireAdmin, RequestController.listRequests);
 router.get("/pending", requireAuth, requireAdmin, RequestController.getPending);
 router.get("/user/:uid", requireAuth, RequestController.getByUser);
+router.get("/ongoing/summary", requireAuth, RequestController.getOngoingSummary);
 router.get("/:id", requireAuth, RequestController.getRequest);
 
 // Batch endpoints

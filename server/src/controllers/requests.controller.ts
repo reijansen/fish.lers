@@ -78,6 +78,19 @@ export class RequestController {
   }
 
   /**
+   * GET /api/requests/ongoing/summary
+   * Returns reserved quantities grouped by equipmentID for ongoing requests.
+   */
+  static async getOngoingSummary(req: Request, res: Response): Promise<void> {
+    try {
+      const summary = await RequestService.getOngoingReservationSummary();
+      res.status(200).json({ success: true, data: summary });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  /**
    * GET /api/requests/:id
    * Get a single request by ID.
    */

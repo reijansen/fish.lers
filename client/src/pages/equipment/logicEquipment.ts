@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Equipment, AvailableEquipmentItem } from "../../db";
 import * as equipmentApi from "../../api/equipment.api";
+import * as requestsApi from "../../api/requests.api";
 import { useToast } from "../../context/toastContext";
 /**
  * REPLACEMENT for logicEquipment hook.
@@ -229,54 +230,30 @@ export function useFetchAvailableItems(
 ) {
   const [activeReservations, setActiveReservations] = useState<Record<string, number>>({});
 
-  // TODO: For now, this still uses Firestore directly for requests.
-  // After requests are migrated to the API, replace with API call.
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    // TEMPORARY: Still using Firestore for requests
-    // This will be replaced with API call in Phase X (requests migration)
-    const setupListener = async () => {
-      const { collection, onSnapshot, query, where } = await import("firebase/firestore");
-      const { db } = await import("../../firebase");
-
-      // Optimization: Filter by status 'ongoing' at the query level
-      const q = query(collection(db, "requests"), where("status", "==", "ongoing"));
-
-      unsubscribe = onSnapshot(q, (snapshot) => {
-        const reservedTotals: Record<string, number> = {};
-
-        snapshot.forEach((doc) => {
-          const data = doc.data() as any;
-          const reqStart = data.startDate;
-          const reqEnd = data.endDate;
-
-          if (_startDate && _endDate && reqStart && reqEnd) {
-            const userStart = new Date(_startDate);
-            const userEnd = new Date(_endDate);
-            const existingStart = new Date(reqStart);
-            const existingEnd = new Date(reqEnd);
-
-            const overlaps = userStart <= existingEnd && userEnd >= existingStart;
-
-            if (!overlaps) return;
-          }
-
-          const items = Array.isArray(data.items) ? data.items : [];
-          items.forEach((item: any) => {
-            const equipmentID = item?.equipmentID;
-            const qty = Number(item?.qty) || 0;
-            if (!equipmentID || qty <= 0) return;
-            reservedTotals[equipmentID] = (reservedTotals[equipmentID] || 0) + qty;
-          });
-        });
-        setActiveReservations(reservedTotals);
-      });
+    const fetchSummary = async () => {
+      try {
+        const reservedTotals = await requestsApi.getOngoingReservationSummary();
+        if (!cancelled) {
+          setActiveReservations(reservedTotals || {});
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to fetch ongoing reservation summary:", error);
+          setActiveReservations({});
+        }
+      }
     };
 
-    setupListener();
+    fetchSummary();
+    intervalId = setInterval(fetchSummary, 20_000);
+
     return () => {
-      if (unsubscribe) unsubscribe();
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
     };
   }, [_startDate, _endDate]);
 

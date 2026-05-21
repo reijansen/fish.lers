@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from '../../firebase';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function DataMigration() {
@@ -10,6 +10,7 @@ export default function DataMigration() {
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmInput, setConfirmInput] = useState('');
+  const [backfilling, setBackfilling] = useState(false);
 
   async function migrateAllData() {
     if (!user) return;
@@ -61,6 +62,87 @@ export default function DataMigration() {
     }
   }
 
+  async function backfillAccountabilityStudentUid() {
+    if (!user) return;
+
+    try {
+      setBackfilling(true);
+      setMessage('Starting studentUid backfill for accountabilities...');
+      setMessageType('info');
+
+      const accountSnap = await getDocs(collection(db, 'accountabilities'));
+      let scanned = 0;
+      let updated = 0;
+      let skipped = 0;
+      let unresolved = 0;
+
+      for (const accountDoc of accountSnap.docs) {
+        scanned++;
+        const data: any = accountDoc.data();
+
+        if (data.studentUid) {
+          skipped++;
+          continue;
+        }
+
+        let resolvedStudentUid: string | null = null;
+
+        if (data.requestId) {
+          try {
+            const requestSnap = await getDoc(doc(db, 'requests', data.requestId));
+            if (requestSnap.exists()) {
+              const requestData: any = requestSnap.data();
+              if (requestData?.userID) {
+                resolvedStudentUid = String(requestData.userID);
+              }
+            }
+          } catch (e) {
+            console.warn('Failed resolving request for accountability:', accountDoc.id, e);
+          }
+        }
+
+        if (!resolvedStudentUid && data.createdBy) {
+          try {
+            const createdByUserSnap = await getDoc(doc(db, 'users', String(data.createdBy)));
+            if (createdByUserSnap.exists()) {
+              const userData: any = createdByUserSnap.data();
+              if (userData?.role === 'student') {
+                resolvedStudentUid = String(data.createdBy);
+              }
+            }
+          } catch (e) {
+            console.warn('Failed resolving createdBy user for accountability:', accountDoc.id, e);
+          }
+        }
+
+        if (!resolvedStudentUid) {
+          unresolved++;
+          continue;
+        }
+
+        await updateDoc(doc(db, 'accountabilities', accountDoc.id), {
+          studentUid: resolvedStudentUid,
+          updatedAt: new Date().toISOString(),
+        });
+        updated++;
+      }
+
+      setMessage(
+        `✓ studentUid backfill complete!\n` +
+        `• Scanned: ${scanned}\n` +
+        `• Updated: ${updated}\n` +
+        `• Already had studentUid: ${skipped}\n` +
+        `• Unresolved: ${unresolved}`
+      );
+      setMessageType(unresolved > 0 ? 'info' : 'success');
+    } catch (error: any) {
+      setMessage(`✗ studentUid backfill failed: ${error.message}`);
+      setMessageType('error');
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
   return (
     <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6">
       <div>
@@ -102,6 +184,35 @@ export default function DataMigration() {
               <span>{message}</span>
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="card bg-base-200 shadow-xl">
+        <div className="card-body">
+          <h2 className="card-title">Backfill `studentUid` for Accountabilities</h2>
+          <p>
+            Safely updates only accountability records missing <code>studentUid</code>, using
+            <code>requestId → requests.userID</code> first, then legacy <code>createdBy</code> when it points to a student user.
+          </p>
+          <div className="alert alert-info mt-4">
+            <span>This does not modify existing `studentUid` values.</span>
+          </div>
+          <div className="card-actions justify-end mt-4">
+            <button
+              className="btn btn-secondary"
+              disabled={backfilling}
+              onClick={backfillAccountabilityStudentUid}
+            >
+              {backfilling ? (
+                <>
+                  <span className="loading loading-spinner loading-sm"></span>
+                  Backfilling...
+                </>
+              ) : (
+                'Backfill studentUid'
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

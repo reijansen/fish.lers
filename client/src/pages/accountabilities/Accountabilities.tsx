@@ -1,7 +1,7 @@
 import React from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { db } from '../../firebase'
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
 import { AlertCircle, CheckCircle, Clock, FileWarning, Calendar } from 'lucide-react'
 import MobileStatsPager from '../../components/MobileStatsPager'
 import { formatDate, truncate } from '../../utils/formatters'
@@ -33,26 +33,24 @@ export default function Accountabilities(){
       setRows(list)
     }
 
-    let unsubMain: (() => void) | null = null
-    let unsubFallback: (() => void) | null = null
-    try {
-      const q = query(collection(db,'accountabilities'), where('createdBy','==', user.uid), orderBy('dueDate','asc'))
-      unsubMain = onSnapshot(q, (snap) => processSnapshot(snap), (err) => {
-        console.error('Accountabilities snapshot error', err)
-        try {
-          const qf = query(collection(db,'accountabilities'), where('createdBy','==', user.uid))
-          unsubFallback = onSnapshot(qf, (snap) => processSnapshot(snap), (err2) => console.error('Accountabilities fallback error', err2))
-        } catch (e) {
-          console.error('Failed to subscribe accountabilities fallback', e)
+    const q = query(
+      collection(db, 'accountabilities'),
+      where('studentUid', '==', user.uid)
+    )
+    const unsub = onSnapshot(
+      q,
+      (snap) => processSnapshot(snap),
+      (err) => {
+        if (err?.code === 'permission-denied') {
+          console.error('Accountabilities listener denied by rules:', err)
+          setAlertMessage('You do not have permission to read accountabilities for this account.')
+          return
         }
-      })
-    } catch (e) {
-      console.error('Failed to subscribe accountabilities main', e)
-      const qf = query(collection(db,'accountabilities'), where('createdBy','==', user.uid))
-      unsubFallback = onSnapshot(qf, (snap) => processSnapshot(snap), (err2) => console.error('Accountabilities fallback error', err2))
-    }
+        console.error('Accountabilities listener error:', err)
+      }
+    )
 
-    return () => { if (unsubMain) unsubMain(); if (unsubFallback) unsubFallback() }
+    return () => unsub()
   },[user])
 
   // Filter rows
@@ -157,15 +155,51 @@ export default function Accountabilities(){
                 <div className="card-body p-0">
                   {/* Tabs Header */}
                   <div className="p-4 border-b border-base-300">
-                    <div role="tablist" className="tabs tabs-boxed bg-base-300">
+                    <div className="overflow-x-auto pb-1">
+                    <div role="tablist" className="tabs tabs-boxed bg-base-300 w-fit whitespace-nowrap">
                       <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'all' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('all')}>All</a>
                       <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'pending' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('pending')}>Pending</a>
                       <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'resolved' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('resolved')}>Resolved</a>
                       <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'overdue' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('overdue')}>Overdue</a>
                     </div>
+                    </div>
                   </div>
-                  {/* Table */}
-                  <div className="overflow-x-auto">
+                  {/* Mobile cards */}
+                  <div className="lg:hidden p-3 sm:p-4 space-y-3">
+                    {filtered.length === 0 ? (
+                      <div className="text-center py-8 text-base-content/60">No accountabilities found</div>
+                    ) : (
+                      filtered.map((r) => (
+                        <div key={r.id} className="card bg-base-100 border border-base-300 shadow-sm">
+                          <div className="card-body p-4 gap-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-semibold truncate">{r.studentName || 'Student'}</div>
+                                <div className="text-xs font-mono text-base-content/60 truncate">
+                                  {r.studentNumber || 'No student number'}
+                                </div>
+                              </div>
+                              <div className="shrink-0">{getStatusBadge(r.status)}</div>
+                            </div>
+                            <div className="text-sm text-base-content/80 flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-base-content/50 flex-shrink-0" />
+                              <span>{r.due ? formatDate(r.due) : 'No date set'}</span>
+                            </div>
+                            <p className="text-sm text-base-content/80">
+                              {truncate(formatDetails(r.details) || 'No details provided', 90)}
+                            </p>
+                            <div className="card-actions justify-end">
+                              <button className="btn btn-primary btn-sm w-full sm:w-auto" onClick={() => setShowModal(r)}>
+                                View details
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {/* Desktop table */}
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="table min-w-[720px]">
                       <thead>
                         <tr>
@@ -218,8 +252,8 @@ export default function Accountabilities(){
 
               {/* Details Modal */}
               {showModal && (
-                <dialog className="modal modal-open">
-                  <div className="modal-box max-w-2xl">
+                <dialog className="modal modal-open sm:modal-middle">
+                  <div className="modal-box w-11/12 max-w-2xl max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
                     <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setShowModal(null)}>
                       ✕
                     </button>

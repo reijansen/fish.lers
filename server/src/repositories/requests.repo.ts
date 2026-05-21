@@ -14,6 +14,29 @@ type ListOptions = {
  * Purpose: Data access layer for request data.
  */
 export class RequestRepository {
+  static async getOngoingReservationSummary(): Promise<Record<string, number>> {
+    const db = getFirestore();
+    const snapshot = await db
+      .collection(REQUESTS_COLLECTION)
+      .where("status", "==", "ongoing")
+      .get();
+
+    const totals: Record<string, number> = {};
+
+    snapshot.forEach((doc) => {
+      const data = doc.data() as any;
+      const items = Array.isArray(data.items) ? data.items : [];
+      items.forEach((item: any) => {
+        const equipmentID = item?.equipmentID;
+        const qty = Number(item?.qty) || 0;
+        if (!equipmentID || qty <= 0) return;
+        totals[equipmentID] = (totals[equipmentID] || 0) + qty;
+      });
+    });
+
+    return totals;
+  }
+
   /**
    * Create a new request.
    */

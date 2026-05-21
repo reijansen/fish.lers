@@ -146,6 +146,15 @@ export class RequestService {
   }
 
   /**
+   * Aggregate reserved quantities across ongoing requests.
+   * Used by student request form to compute real-time availability without
+   * exposing direct Firestore list listeners to student clients.
+   */
+  static async getOngoingReservationSummary(): Promise<Record<string, number>> {
+    return await RequestRepository.getOngoingReservationSummary();
+  }
+
+  /**
    * Update a request (by requester or admin).
    * Status transitions are validated.
    */

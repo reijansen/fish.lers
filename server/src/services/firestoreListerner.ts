@@ -16,7 +16,8 @@ const listeners: Array<{ collection: string; model: mongoose.Model<any> }> = [
 
 export const startFirestoreListeners = (): void => {
   const db = getFirestore();
-  const activeMessageListeners = new Set<string>(); // Track which conversations have listeners
+  // Map to store unsubscribe functions for each conversation's message listener
+  const activeMessageListeners = new Map<string, () => void>();
 
   // ✅ Regular collections
   for (const { collection, model } of listeners) {
@@ -68,9 +69,9 @@ export const startFirestoreListeners = (): void => {
 
             // Attach message listener only once per conversation
             if (!activeMessageListeners.has(docId)) {
-              activeMessageListeners.add(docId);
-              
-              db.collection('chat_conversations')
+              // Create the message listener and store its unsubscribe function
+              const unsubMessageListener = db
+                .collection('chat_conversations')
                 .doc(docId)
                 .collection('messages')
                 .onSnapshot(
@@ -99,12 +100,23 @@ export const startFirestoreListeners = (): void => {
                   },
                   (err) => console.error(`❌ Message listener error for ${docId}:`, err)
                 );
+              
+              activeMessageListeners.set(docId, unsubMessageListener);
+              console.log(`👂 Added message listener for conversation ${docId}`);
             }
           }
 
           if (change.type === 'removed') {
             await (ConversationBackup as Model<any>).deleteOne({ docId });
-            activeMessageListeners.delete(docId);
+            
+            // IMPORTANT: Unsubscribe the message listener when conversation is removed
+            const unsubMessage = activeMessageListeners.get(docId);
+            if (unsubMessage) {
+              unsubMessage(); // Call the unsubscribe function
+              activeMessageListeners.delete(docId);
+              console.log(`🔌 Removed message listener for conversation ${docId}`);
+            }
+            
             console.log(`🗑️ Removed conversation ${docId}`);
           }
         } catch (err) {

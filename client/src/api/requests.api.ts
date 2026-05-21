@@ -100,6 +100,15 @@ export async function getRequestsByUser(uid: string, options?: ListOptions): Pro
 }
 
 /**
+ * Get aggregated reserved quantities from ongoing requests.
+ * GET /api/requests/ongoing/summary
+ */
+export async function getOngoingReservationSummary(): Promise<Record<string, number>> {
+  const data = await apiGet<Record<string, number>>("/api/requests/ongoing/summary");
+  return data;
+}
+
+/**
  * Get a single request by ID.
  * GET /api/requests/:id
  */
@@ -227,6 +236,7 @@ export default {
   listRequests,
   getPendingRequests,
   getRequestsByUser,
+  getOngoingReservationSummary,
   getRequest,
   updateRequest,
   approveRequest,

@@ -63,15 +63,41 @@ const AdminAccountabilities: React.FC = () => {
 
     let unsub: (() => void) | null = null
     try {
-      const q = query(collection(db,'accountabilities'), orderBy('dueDate','asc'))
-      unsub = onSnapshot(q, (snap) => processSnapshot(snap), (err) => {
-        console.error('Accountabilities snapshot error', err)
-      })
+      const q = query(collection(db, 'accountabilities'), orderBy('dueDate', 'asc'))
+      unsub = onSnapshot(
+        q,
+        (snap) => processSnapshot(snap),
+        (err) => {
+          console.error('Accountabilities ordered query failed, retrying without orderBy:', err)
+          // Retry with unordered query
+          try {
+            const qFallback = query(collection(db, 'accountabilities'))
+            unsub = onSnapshot(
+              qFallback,
+              (snap) => processSnapshot(snap),
+              (err2) => console.error('Accountabilities fallback listener error:', err2)
+            )
+          } catch (fallbackErr) {
+            console.error('Failed to create fallback accountabilities listener:', fallbackErr)
+          }
+        }
+      )
     } catch (e) {
-      console.error('Failed to subscribe accountabilities', e)
+      console.error('Failed to subscribe accountabilities:', e)
+      // Final fallback: simple query
+      try {
+        const qSimple = query(collection(db, 'accountabilities'))
+        unsub = onSnapshot(
+          qSimple,
+          (snap) => processSnapshot(snap),
+          (err) => console.error('Accountabilities simple query error:', err)
+        )
+      } catch (simpleErr) {
+        console.error('Failed to create simple accountabilities listener:', simpleErr)
+      }
     }
 
-    return () => { if (unsub) unsub(); }
+    return () => { if (unsub) unsub() }
   }, [])
 
   React.useEffect(() => {

@@ -25,6 +25,7 @@ export function useAnnouncements() {
     // Query active and approved announcements visible to this user
     const q = query(
       collection(db, 'announcements'),
+      where('active', '==', true),
       where('status', '==', 'approved'),
       where('visibleTo', 'array-contains', userRole)
     );
@@ -59,6 +60,10 @@ export function useAnnouncements() {
         setAnnouncements([]);
         setLoading(false);
         setError(err?.message || 'Failed to load announcements.');
+        // Prevent repeated watch retries from triggering Firestore internal assertions.
+        if (err?.code === 'permission-denied') {
+          unsubscribe();
+        }
       }
     );
 

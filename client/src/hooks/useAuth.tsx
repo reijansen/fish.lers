@@ -132,6 +132,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Claims are the runtime source of truth; fallback to API payload for compatibility.
             isSuperAdmin: hasSuperAdminClaim || !!userData.isSuperAdmin,
           };
+          console.info("[Auth Debug] session", {
+            firebaseUid: firebaseUser.uid,
+            verifiedUid: resolvedUser.uid,
+            email: firebaseUser.email || resolvedUser.email,
+            profileRole: resolvedUser.role,
+            adminClaim: hasAdminClaim,
+            superAdminClaim: hasSuperAdminClaim,
+          });
           const currentSignature = {
             uid: resolvedUser.uid,
             role: resolvedUser.role,
