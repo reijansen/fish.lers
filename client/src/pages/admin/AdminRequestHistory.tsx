@@ -192,11 +192,13 @@ const AdminRequestHistory: React.FC = () => {
           } catch {
             createdAt = null;
           }
+          // Prefer the actual requester (student) id fields. Some legacy documents may
+          // have `createdBy` set to an admin actor, so keep it as a last-resort fallback.
           const requesterId =
-            data.createdBy ||
             data.userID ||
             data.studentId ||
-            data.studentID;
+            data.studentID ||
+            data.createdBy;
 
           return {
             id: doc.id,
@@ -233,11 +235,13 @@ const AdminRequestHistory: React.FC = () => {
 
   React.useEffect(() => {
     const getRequesterId = (req: any): string | undefined =>
-    req?.createdBy ||
-    req?.userID ||
-    req?.studentId ||
-    req?.studentID ||
-    undefined;
+      req?.studentUid ||
+      req?.studentUID ||
+      req?.userID ||
+      req?.studentId ||
+      req?.studentID ||
+      req?.createdBy ||
+      undefined;
 
   const missing = Array.from(
     new Set(
@@ -303,17 +307,18 @@ const AdminRequestHistory: React.FC = () => {
   
   const getRequester = (req: AdminRequestRecord) => {
     if (
-      req.createdByName &&
-      req.createdByName.trim() !== ""
-    ) {
-      return req.createdByName;
-    }
-
-    if (
       req.createdBy &&
       nameMap[req.createdBy]
     ) {
       return nameMap[req.createdBy];
+    }
+
+    // Fallback to whatever was stored on the request doc (may be legacy/migrated).
+    if (
+      req.createdByName &&
+      req.createdByName.trim() !== ""
+    ) {
+      return req.createdByName;
     }
 
     return req.createdBy || "Unknown Requester";
@@ -323,6 +328,16 @@ const AdminRequestHistory: React.FC = () => {
     if (!uid) return "System";
     return nameMap[uid] || uid;
   };
+
+  const OverrideBadge: React.FC<{ compact?: boolean }> = ({ compact }) => (
+    <span
+      className={`badge badge-secondary whitespace-nowrap ${
+        compact ? "badge-sm px-2 text-[10px]" : ""
+      }`}
+    >
+      super admin
+    </span>
+  );
 
   const timelineEvents = React.useMemo(() => {
     if (!selectedRequest) return [];
@@ -906,7 +921,7 @@ const AdminRequestHistory: React.FC = () => {
                                     {req.status || "Pending"}
                                   </span>
                                   {(req.overriddenAt || req.overriddenBy) && (
-                                    <span className="badge badge-secondary">Super Admin</span>
+                                    <OverrideBadge compact />
                                   )}
                                 </div>
                               </td>
@@ -967,7 +982,7 @@ const AdminRequestHistory: React.FC = () => {
                               <span className="badge badge-ghost">{itemCount} items</span>
                               {isOngoing && <span className="badge badge-success">Ongoing</span>}
                               {(req.overriddenAt || req.overriddenBy) && (
-                                <span className="badge badge-secondary">Super Admin</span>
+                                <OverrideBadge compact />
                               )}
                             </div>
 
@@ -1060,7 +1075,7 @@ const AdminRequestHistory: React.FC = () => {
                       {selectedRequest.status || "Pending"}
                     </span>
                     {(selectedRequest.overriddenAt || selectedRequest.overriddenBy) && (
-                      <span className="badge badge-secondary">Super Admin</span>
+                      <OverrideBadge />
                     )}
                   </div>
                   <p className="text-xs uppercase tracking-wide text-base-content/60">

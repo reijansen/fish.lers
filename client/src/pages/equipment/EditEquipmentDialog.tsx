@@ -102,8 +102,13 @@ export default function EditEquipmentDialog({
       ) : null}
 
       {open && (
-        <div className="modal modal-open">
-          <div className="modal-box">
+        <div
+          className="modal modal-open"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeModal();
+          }}
+        >
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <h3 className="font-bold text-lg mb-4">Edit Equipment</h3>
 
             {/* Pass categories down to the shared form */}

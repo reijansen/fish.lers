@@ -1,17 +1,46 @@
 import React from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { db } from '../../firebase'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { AlertCircle, CheckCircle, Clock, FileWarning, Calendar } from 'lucide-react'
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
+import { AlertCircle, CheckCircle, Clock, FileWarning, Calendar, X } from 'lucide-react'
 import MobileStatsPager from '../../components/MobileStatsPager'
 import { formatDate, truncate } from '../../utils/formatters'
 
 export default function Accountabilities(){
   const { user } = useAuth()
   const [rows, setRows] = React.useState<any[]>([])
-  const [tab, setTab] = React.useState<'all'|'pending'|'resolved'|'overdue'>('all');
+  const [tab, setTab] = React.useState<'all'|'pending'|'resolved'>('all');
   const [showModal, setShowModal] = React.useState<any | null>(null);
   const [alertMessage, setAlertMessage] = React.useState<string | null>(null);
+  const [profileStudentNumber, setProfileStudentNumber] = React.useState<string>('')
+  const rowsByQueryRef = React.useRef<Record<string, Record<string, any>>>({})
+
+  React.useEffect(() => {
+    if (!user?.uid) {
+      setProfileStudentNumber('')
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid))
+        if (!snap.exists()) return
+        const data: any = snap.data()
+        const sn =
+          data.studentNumber ||
+          data.studentNo ||
+          data.student_id ||
+          data.studentId ||
+          ''
+        if (!cancelled) setProfileStudentNumber(String(sn || ''))
+      } catch (e) {
+        console.warn('Failed to load student profile for student number', e)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.uid])
 
   React.useEffect(()=>{
     if(!user) return
@@ -27,31 +56,44 @@ export default function Accountabilities(){
           details: data.details || '',
           status: data.status || 'pending',
           studentName: data.studentName || data.createdByName || user?.displayName || user?.email || 'Student',
-          studentNumber: data.studentNumber || data.createdByNumber || data.studentNo || ''
+          studentNumber: data.studentNumber || data.createdByNumber || data.studentNo || profileStudentNumber || ''
         })
       })
-      setRows(list)
+      return list
     }
 
-    const q = query(
-      collection(db, 'accountabilities'),
-      where('studentUid', '==', user.uid)
-    )
-    const unsub = onSnapshot(
-      q,
-      (snap) => processSnapshot(snap),
-      (err) => {
-        if (err?.code === 'permission-denied') {
-          console.error('Accountabilities listener denied by rules:', err)
-          setAlertMessage('You do not have permission to read accountabilities for this account.')
-          return
-        }
-        console.error('Accountabilities listener error:', err)
-      }
-    )
+    const mergeAndSet = (key: string, snap: any) => {
+      rowsByQueryRef.current[key] = Object.fromEntries(processSnapshot(snap).map((r: any) => [r.id, r]))
+      const merged = Object.values(rowsByQueryRef.current).flatMap((m) => Object.values(m))
+      const byId = new Map<string, any>()
+      merged.forEach((r: any) => {
+        if (!byId.has(r.id)) byId.set(r.id, r)
+      })
+      setRows(Array.from(byId.values()))
+    }
 
-    return () => unsub()
-  },[user])
+    const handleErr = (err: any) => {
+      if (err?.code === 'permission-denied') {
+        console.error('Accountabilities listener denied by rules:', err)
+        setAlertMessage('You do not have permission to read accountabilities for this account.')
+        return
+      }
+      console.error('Accountabilities listener error:', err)
+    }
+
+    const qPrimary = query(collection(db, 'accountabilities'), where('studentUid', '==', user.uid))
+    // Legacy fallbacks: older documents may not have studentUid populated yet.
+    const qLegacyCreatedBy = query(collection(db, 'accountabilities'), where('createdBy', '==', user.uid))
+
+    const unsubPrimary = onSnapshot(qPrimary, (snap) => mergeAndSet('studentUid', snap), handleErr)
+    const unsubLegacy = onSnapshot(qLegacyCreatedBy, (snap) => mergeAndSet('createdBy', snap), handleErr)
+
+    return () => {
+      unsubPrimary()
+      unsubLegacy()
+      rowsByQueryRef.current = {}
+    }
+  },[user, profileStudentNumber])
 
   // Filter rows
   let filtered = rows.filter(r => {
@@ -59,14 +101,12 @@ export default function Accountabilities(){
     const s = (r.status || 'pending').toLowerCase();
     if (tab === 'pending') return s === 'pending';
     if (tab === 'resolved') return s === 'resolved' || s === 'completed';
-    if (tab === 'overdue') return s === 'overdue';
     return false;
   });
 
   // Count stats
   const pendingCount = rows.filter(r => (r.status || '').toLowerCase() === 'pending').length;
   const resolvedCount = rows.filter(r => ['resolved','completed'].includes((r.status || '').toLowerCase())).length;
-  const overdueCount = rows.filter(r => (r.status || '').toLowerCase() === 'overdue').length;
 
   // Status badge helper
   const getStatusBadge = (status: string) => {
@@ -160,7 +200,6 @@ export default function Accountabilities(){
                       <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'all' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('all')}>All</a>
                       <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'pending' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('pending')}>Pending</a>
                       <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'resolved' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('resolved')}>Resolved</a>
-                      <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'overdue' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('overdue')}>Overdue</a>
                     </div>
                     </div>
                   </div>
@@ -170,7 +209,16 @@ export default function Accountabilities(){
                       <div className="text-center py-8 text-base-content/60">No accountabilities found</div>
                     ) : (
                       filtered.map((r) => (
-                        <div key={r.id} className="card bg-base-100 border border-base-300 shadow-sm">
+                        <div
+                          key={r.id}
+                          className="card bg-base-100 border border-base-300 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setShowModal(r)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') setShowModal(r)
+                          }}
+                        >
                           <div className="card-body p-4 gap-3">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -188,11 +236,6 @@ export default function Accountabilities(){
                             <p className="text-sm text-base-content/80">
                               {truncate(formatDetails(r.details) || 'No details provided', 90)}
                             </p>
-                            <div className="card-actions justify-end">
-                              <button className="btn btn-primary btn-sm w-full sm:w-auto" onClick={() => setShowModal(r)}>
-                                View details
-                              </button>
-                            </div>
                           </div>
                         </div>
                       ))
@@ -203,29 +246,25 @@ export default function Accountabilities(){
                     <table className="table min-w-[720px]">
                       <thead>
                         <tr>
-                          <th>Date Due</th>
                           <th>Student</th>
                           <th>Details</th>
                           <th>Status</th>
-                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filtered.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="text-center py-8 text-base-content/60">
+                            <td colSpan={3} className="text-center py-8 text-base-content/60">
                               No accountabilities found
                             </td>
                           </tr>
                         ) : (
                           filtered.map((r) => (
-                            <tr key={r.id} className="hover">
-                              <td>
-                                <div className="flex items-center gap-2">
-                                  <Calendar className="w-4 h-4 text-base-content/50 flex-shrink-0" />
-                                  <span className="font-semibold">{r.due ? formatDate(r.due) : 'No date set'}</span>
-                                </div>
-                              </td>
+                            <tr
+                              key={r.id}
+                              className="cursor-pointer transition-colors hover:bg-base-300/40"
+                              onClick={() => setShowModal(r)}
+                            >
                               <td>
                                 <div className="font-medium">{r.studentName || 'Student'}</div>
                                 <div className="text-xs font-mono text-base-content/60">
@@ -238,9 +277,6 @@ export default function Accountabilities(){
                                 </div>
                               </td>
                               <td>{getStatusBadge(r.status)}</td>
-                              <td>
-                                <button className="btn btn-ghost btn-sm" onClick={() => setShowModal(r)}>View</button>
-                              </td>
                             </tr>
                           ))
                         )}
@@ -254,18 +290,15 @@ export default function Accountabilities(){
               {showModal && (
                 <dialog className="modal modal-open sm:modal-middle">
                   <div className="modal-box w-11/12 max-w-2xl max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
-                    <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setShowModal(null)}>
-                      ✕
+                    <button
+                      className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
+                      onClick={() => setShowModal(null)}
+                      aria-label="Close"
+                      type="button"
+                    >
+                      <X className="w-4 h-4" />
                     </button>
                     <div className="space-y-5">
-                      <div>
-                        <h3 className="text-xs uppercase tracking-wide text-base-content/60 font-semibold">Due Date</h3>
-                        <div className="text-xl font-semibold flex items-center gap-2 mt-2">
-                          <Calendar className="w-5 h-5 text-primary" />
-                          {showModal.due ? formatDate(showModal.due) : 'No date set'}
-                        </div>
-                      </div>
-                      <div className="divider my-2" />
                       <div>
                         <h3 className="text-xs uppercase tracking-wide text-base-content/60 font-semibold mb-2">Student</h3>
                         <div className="bg-base-200 rounded-lg p-4">

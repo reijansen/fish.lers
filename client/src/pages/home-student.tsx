@@ -1,4 +1,4 @@
-// TODO: unify table into one component with tracking page
+﻿// TODO: unify table into one component with tracking page
 
 import React from 'react';
 import { logicEquipment } from './equipment/logicEquipment';
@@ -45,6 +45,7 @@ export default function HomeStudent() {
   const [alertMessage, setAlertMessage] = React.useState<string | null>(null)
   const [accountabilities, setAccountabilities] = React.useState<any[]>([])
   const [accountabilityRequestInfo, setAccountabilityRequestInfo] = React.useState<Record<string, { purpose?: string; createdAt?: any }>>({})
+  const accountabilitiesByQueryRef = React.useRef<Record<string, Record<string, any>>>({})
   const { equipmentList, isLoading: isEquipmentLoading } = logicEquipment()
   const [highlightedId, setHighlightedId] = React.useState<string | null>(null)
   const [showAllCount, setShowAllCount] = React.useState(5)
@@ -67,6 +68,62 @@ export default function HomeStudent() {
       return
     }
 
+    const toDateLabel = (ymd: string) => {
+      const match = (ymd || "").match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (!match) return ymd
+      const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+      if (Number.isNaN(d.getTime())) return ymd
+      return d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
+    }
+
+    const toTimeLabel = (t: any) => {
+      if (!t) return ""
+      try {
+        if (typeof t === "string") {
+          if (/[ap]m/i.test(t)) return t.trim()
+          const m = t.match(/^(\d{1,2}):(\d{2})$/)
+          if (m) {
+            let h = parseInt(m[1], 10)
+            const min = m[2]
+            const ampm = h >= 12 ? "PM" : "AM"
+            h = h % 12 || 12
+            return `${h}:${min} ${ampm}`
+          }
+        }
+      } catch {}
+      return String(t)
+    }
+
+    const formatUsageRange = (req: any) => {
+      const sDate = (req?.startDate || "").trim()
+      const eDate = (req?.endDate || "").trim()
+      if (!sDate && !eDate) return ""
+
+      const sdStr = sDate || eDate
+      const edStr = eDate || sDate
+
+      const datePart = sdStr === edStr ? toDateLabel(sdStr) : `${toDateLabel(sdStr)} to ${toDateLabel(edStr)}`
+      const timePart =
+        req?.start || req?.end ? `${toTimeLabel(req?.start || "00:00")}–${toTimeLabel(req?.end || "23:59")}` : ""
+
+      let durationPart = ""
+      try {
+        const sd = new Date(`${sdStr}T00:00:00`)
+        const ed = new Date(`${edStr}T23:59:00`)
+        if (!Number.isNaN(sd.getTime()) && !Number.isNaN(ed.getTime())) {
+          const diffMs = Math.max(0, ed.getTime() - sd.getTime())
+          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+          const diffHours = Math.floor(diffMs / (1000 * 60 * 60)) % 24
+          const parts: string[] = []
+          if (diffDays > 0) parts.push(`${diffDays}d`)
+          if (diffHours > 0) parts.push(`${diffHours}h`)
+          durationPart = parts.length ? ` (${parts.join(" ")})` : ""
+        }
+      } catch {}
+
+      return `${datePart}${timePart ? ` • ${timePart}` : ""}${durationPart}`
+    }
+
     const docs = trackingRequests.map((req: any) => {
       const purpose = req.purpose || ''
       const status = req.status || 'pending'
@@ -84,27 +141,7 @@ export default function HomeStudent() {
           }).join(', ')
         : ''
 
-      let duration = ''
-      try {
-        const sDate = req.startDate || ''
-        const eDate = req.endDate || ''
-        if (sDate || eDate) {
-          const sd = new Date((sDate || eDate) + 'T00:00')
-          const ed = new Date((eDate || sDate) + 'T23:59')
-
-          if (!isNaN(sd.getTime()) && !isNaN(ed.getTime())) {
-            const diffMs = Math.max(0, ed.getTime() - sd.getTime())
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-            const diffHours = Math.floor(diffMs / (1000 * 60 * 60)) % 24
-
-            const parts: string[] = []
-            if (diffDays > 0) parts.push(`${diffDays}d`)
-            if (diffHours > 0) parts.push(`${diffHours}h`)
-
-            duration = `${sd.toLocaleString()} → ${ed.toLocaleString()}${parts.length ? ` (${parts.join(' ')})` : ''}`
-          }
-        }
-      } catch {}
+      const duration = formatUsageRange(req)
 
       return {
         purpose,
@@ -173,6 +210,22 @@ export default function HomeStudent() {
     } catch (e) {}
     return String(t);
   }
+
+  const formatUsageDate = (value?: string) => {
+    if (!value) return "—";
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return value;
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const parsed = new Date(year, month, day);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return parsed.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
   const openRequestDetails = (requestId: string) => {
     const found = trackingRequests.find((r: any) => (r.requestID || r.id) === requestId)
@@ -269,7 +322,13 @@ export default function HomeStudent() {
   const approvedCount = rows.filter(r => r.status?.toLowerCase() === 'approved' && !isOngoing(r)).length
   const declinedCount = rows.filter(r => ['declined', 'rejected'].includes((r.status || '').toLowerCase())).length
   const rejectedCancelledCount = rows.filter(r => ['declined', 'rejected', 'cancelled'].includes((r.status || '').toLowerCase())).length
-  const completedCount = rows.filter(r => ['completed', 'returned'].includes((r.status || '').toLowerCase())).length
+  const resolvedAccountabilities = accountabilities.filter((a) => {
+    const s = (a.status || '').toLowerCase()
+    return s === 'resolved' || s === 'completed'
+  })
+  const completedCount =
+    rows.filter(r => ['completed', 'returned'].includes((r.status || '').toLowerCase())).length +
+    resolvedAccountabilities.length
 
   // Status badge helper
   const getStatusBadge = (r: any) => {
@@ -288,6 +347,12 @@ export default function HomeStudent() {
       .split(/[\n,]+/)
       .map(part => part.trim())
       .filter(Boolean)
+  }
+
+  const truncate = (text: string, max = 80) => {
+    const value = String(text || '')
+    if (value.length <= max) return value
+    return `${value.slice(0, Math.max(0, max - 1))}…`
   }
 
   const formatAccountabilityDetails = (details: string) => parseAccountabilityDetails(details).join(', ')
@@ -333,25 +398,51 @@ export default function HomeStudent() {
           purpose: data.purpose || '',
         })
       })
-      setAccountabilities(list)
+      return list
     }
-    const q = query(
+
+    const mergeAndSet = (key: string, snap: any) => {
+      accountabilitiesByQueryRef.current[key] = Object.fromEntries(
+        processSnapshot(snap).map((row: any) => [row.id, row])
+      )
+      const merged = Object.values(accountabilitiesByQueryRef.current).flatMap((m) => Object.values(m))
+      // de-dupe by id (prefer studentUid query if both exist)
+      const byId = new Map<string, any>()
+      merged.forEach((r: any) => {
+        if (!byId.has(r.id)) byId.set(r.id, r)
+      })
+      setAccountabilities(Array.from(byId.values()))
+    }
+
+    const handleErr = (err: any) => {
+      if (err?.code === 'permission-denied') {
+        console.error('Student accountabilities listener denied by rules:', err)
+        setAlertMessage('Unable to load accountabilities due to permissions. Please re-login or contact admin.')
+        return
+      }
+      console.error('Student accountabilities listener error:', err)
+    }
+
+    // Primary (current) field
+    const qPrimary = query(
       collection(db, 'accountabilities'),
       where('studentUid', '==', user.uid)
     )
-    const unsub = onSnapshot(
-      q,
-      (snap) => processSnapshot(snap),
-      (err) => {
-        if (err?.code === 'permission-denied') {
-          console.error('Student accountabilities listener denied by rules:', err)
-          setAlertMessage('Unable to load accountabilities due to permissions. Please re-login or contact admin.')
-          return
-        }
-        console.error('Student accountabilities listener error:', err)
-      }
+
+    // Legacy fallbacks: some older docs may not have studentUid populated yet.
+    const qLegacyCreatedBy = query(
+      collection(db, 'accountabilities'),
+      where('createdBy', '==', user.uid)
     )
-    return () => unsub()
+
+    const unsubPrimary = onSnapshot(qPrimary, (snap) => mergeAndSet('studentUid', snap), handleErr)
+    const unsubLegacy = onSnapshot(qLegacyCreatedBy, (snap) => mergeAndSet('createdBy', snap), handleErr)
+
+    return () => {
+      unsubPrimary()
+      unsubLegacy()
+      accountabilitiesByQueryRef.current = {}
+    }
   }, [user])
 
   React.useEffect(() => {
@@ -586,64 +677,67 @@ export default function HomeStudent() {
                 </p>
               </div>
             ) : (
-              (filter === 'all' ? filteredRows.slice(0, showAllCount) : filteredRows).map((r: any, idx: number) => (
-                <div
-                  key={r.requestId || idx}
-                  id={`req-${r.requestId}`}
-                  className={`card bg-base-100 border border-base-300 shadow-sm ${
-                    highlightedId === r.requestId ? 'ring-2 ring-primary/40 animate-pulse' : ''
-                  }`}
-                >
-                  <div className="card-body p-4 gap-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-semibold truncate">{r.purpose || 'Untitled Request'}</div>
-                        {r.duration ? (
-                          <div className="text-xs text-base-content/60 mt-1 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            <span className="truncate">{r.duration}</span>
-                          </div>
-                        ) : null}
+              <>
+                {(filter === 'all' ? filteredRows.slice(0, showAllCount) : filteredRows).map((r: any, idx: number) => (
+                  <div
+                    key={r.requestId || idx}
+                    id={`req-${r.requestId}`}
+                    className={`card bg-base-100 border border-base-300 shadow-sm ${
+                      highlightedId === r.requestId ? 'ring-2 ring-primary/40 animate-pulse' : ''
+                    }`}
+                  >
+                    <div className="card-body p-4 gap-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate">{r.purpose || 'Untitled Request'}</div>
+                          {r.duration ? (
+                            <div className="text-xs text-base-content/60 mt-1 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              <span className="truncate">{r.duration}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="shrink-0">{getStatusBadge(r)}</div>
                       </div>
-                      <div className="shrink-0">{getStatusBadge(r)}</div>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-base-content/70">
-                      <span className="badge badge-ghost">Qty: {r.totalQuantity || '-'}</span>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs gap-1"
-                        onClick={() => copyToClipboard(r.requestId)}
-                        aria-label="Copy request ID"
-                      >
-                        <Copy className="w-3 h-3" />
-                        {copiedId === r.requestId ? 'Copied' : 'Copy ID'}
-                      </button>
-                    </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-base-content/70">
+                        <span className="badge badge-ghost">Qty: {r.totalQuantity || '-'}</span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs gap-1"
+                          onClick={() => copyToClipboard(r.requestId)}
+                          aria-label="Copy request ID"
+                        >
+                          <Copy className="w-3 h-3" />
+                          {copiedId === r.requestId ? 'Copied' : 'Copy ID'}
+                        </button>
+                      </div>
 
-                    {r.remarks ? (
-                      <button
-                        type="button"
-                        className="btn btn-outline btn-sm w-full gap-2"
-                        onClick={() => { setShowRemarksText(r.remarks); setShowRemarksOpen(true); }}
-                      >
-                        <Eye className="w-4 h-4" />
-                        View admin remarks
-                      </button>
-                    ) : null}
+                      {r.remarks ? (
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm w-full gap-2"
+                          onClick={() => { setShowRemarksText(r.remarks); setShowRemarksOpen(true); }}
+                        >
+                          <Eye className="w-4 h-4" />
+                          View admin remarks
+                        </button>
+                      ) : null}
 
-                    <div className="card-actions justify-end">
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm w-full sm:w-auto"
-                        onClick={() => openRequestDetails(r.requestId)}
-                      >
-                        View details
-                      </button>
+                      <div className="card-actions justify-end">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm w-full sm:w-auto"
+                          onClick={() => openRequestDetails(r.requestId)}
+                        >
+                          View details
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                ))}
+
+              </>
             )}
           </div>
 
@@ -653,6 +747,7 @@ export default function HomeStudent() {
               <thead>
                 <tr>
                   <th>Purpose</th>
+                  <th>Date of Usage</th>
                   <th>Quantity</th>
                   <th>Status</th>
                   <th>Action</th>
@@ -662,7 +757,7 @@ export default function HomeStudent() {
               <tbody>
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-12">
+                    <td colSpan={6} className="text-center py-12">
                       <div className="flex flex-col items-center gap-2 text-base-content/60">
                         <MapPin className="w-12 h-12 opacity-30" />
                         <p className="font-medium">No requests found</p>
@@ -687,11 +782,21 @@ export default function HomeStudent() {
                       {/* Purpose */}
                       <td className="max-w-md">
                         <div className="font-medium">{r.purpose || 'Untitled Request'}</div>
-                        {r.duration && (
-                          <div className="text-xs text-base-content/60 mt-1 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {r.duration}
+                      </td>
+
+                      {/* Date of Usage */}
+                      <td className="max-w-sm">
+                        {r.startDate || r.endDate ? (
+                          <div className="min-w-0 leading-tight">
+                            <p className="text-sm font-medium truncate">
+                              {formatUsageDate(r.startDate || r.endDate)}
+                            </p>
+                            <p className="text-xs text-base-content/60 truncate">
+                              to {formatUsageDate(r.endDate || r.startDate)}
+                            </p>
                           </div>
+                        ) : (
+                          <span className="text-base-content/40 text-sm">—</span>
                         )}
                       </td>
 
@@ -749,6 +854,7 @@ export default function HomeStudent() {
                 )}
               </tbody>
             </table>
+
           </div>
           {filter === 'all' && filteredRows.length > showAllCount && (
             <div className="p-4 border-t border-base-300 flex justify-center">
@@ -763,6 +869,83 @@ export default function HomeStudent() {
         </div>
       </div>
 
+      {filter === 'completed' && resolvedAccountabilities.length > 0 && (
+        <div className="card bg-base-200 shadow-xl">
+          <div className="card-body p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold leading-tight">Resolved Accountabilities</h3>
+                <p className="text-sm text-base-content/60">Marked resolved by admin</p>
+              </div>
+              <span className="badge badge-ghost">{resolvedAccountabilities.length}</span>
+            </div>
+
+            {/* Mobile cards */}
+            <div className="lg:hidden space-y-3">
+              {resolvedAccountabilities.map((a) => (
+                <div
+                  key={a.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setShowAccountabilityModal(a)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') setShowAccountabilityModal(a)
+                  }}
+                  className="card bg-base-100 border border-base-300 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                >
+                  <div className="card-body p-4 gap-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold truncate">{getAccountabilityPurpose(a)}</div>
+                        <div className="text-xs text-base-content/60 truncate">
+                          {truncate(formatAccountabilityDetails(a.details) || 'No details provided', 70)}
+                        </div>
+                      </div>
+                      <div className="shrink-0">{getAccountabilityBadge(a.status)}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="table min-w-[820px] bg-base-100 rounded-box border border-base-300">
+                <thead>
+                  <tr>
+                    <th>Accountability</th>
+                    <th>Details</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resolvedAccountabilities.map((a) => (
+                    <tr
+                      key={a.id}
+                      className="cursor-pointer transition-colors hover:bg-base-300/40"
+                      onClick={() => setShowAccountabilityModal(a)}
+                    >
+                      <td className="max-w-md">
+                        <div className="font-medium truncate">{getAccountabilityPurpose(a)}</div>
+                        <div className="text-xs text-base-content/60 truncate">
+                          {getAccountabilityRequestedAt(a) || '—'}
+                        </div>
+                      </td>
+                      <td className="max-w-md">
+                        <div className="text-sm truncate">
+                          {truncate(formatAccountabilityDetails(a.details) || 'No details provided', 90)}
+                        </div>
+                      </td>
+                      <td>{getAccountabilityBadge(a.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Request Details Modal */}
       {showModalRequest && (
         <dialog className="modal modal-open sm:modal-middle">
@@ -770,64 +953,102 @@ export default function HomeStudent() {
             <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setShowModalRequest(null)} aria-label="Close">
               <X className="w-4 h-4" />
             </button>
-            <h3 className="font-bold text-lg mb-4">Request Details</h3>
-            
-            <div className="text-xs text-base-content/60">Request ID</div>
-            <div className="font-mono text-sm mb-4 bg-base-300 p-2 rounded break-all">{showModalRequest.id}</div>
-            
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="min-w-0">
+                <h3 className="font-bold text-lg leading-tight">Request Details</h3>
+                <p className="text-sm text-base-content/60 truncate">
+                  {showModalRequest.purpose || 'Untitled Request'}
+                </p>
+              </div>
+              <div className="shrink-0">{getStatusBadge(showModalRequest)}</div>
+            </div>
+
+            <div className="rounded-xl border border-base-300 bg-base-200/40 p-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-base-content/60">Request ID</div>
+                  <div className="mt-1 flex items-center gap-2 min-w-0">
+                    <code className="text-xs bg-base-300 px-2 py-1 rounded font-mono break-all">
+                      {showModalRequest.id}
+                    </code>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs btn-circle tooltip shrink-0"
+                      data-tip={copiedId === showModalRequest.id ? 'Copied!' : 'Copy ID'}
+                      onClick={() => copyToClipboard(showModalRequest.id)}
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-base-content/60">Requested At</div>
+                  <div className="mt-1 text-sm">
+                    {formatDateTime(showModalRequest.createdAt) || '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="form-control">
                 <label className="label"><span className="label-text text-xs">Requester</span></label>
-                <div className="bg-base-300 p-2 rounded text-sm">{showModalRequest.createdByName || showModalRequest.createdBy || '-'}</div>
+                <div className="bg-base-300 p-3 rounded-lg text-sm">
+                  {user?.displayName ?? user?.email?.split('@')[0] ?? 'Student'}
+                </div>
               </div>
-              <div className="form-control">
-                <label className="label"><span className="label-text text-xs">Requested At</span></label>
-                <div className="bg-base-300 p-2 rounded text-sm">{formatDateTime(showModalRequest.createdAt)}</div>
-              </div>
+
               <div className="form-control">
                 <label className="label"><span className="label-text text-xs">Adviser / Leader</span></label>
-                <div className="bg-base-300 p-2 rounded text-sm">{showModalRequest.adviser || '-'}</div>
+                <div className="bg-base-300 p-3 rounded-lg text-sm">{showModalRequest.adviser || '—'}</div>
               </div>
-              <div className="form-control">
-                <label className="label"><span className="label-text text-xs">Status</span></label>
-                <div className="bg-base-300 p-2 rounded text-sm">{getStatusBadge(showModalRequest)}</div>
-              </div>
+
               <div className="form-control md:col-span-2">
-                <label className="label"><span className="label-text text-xs">Purpose</span></label>
-                <div className="bg-base-300 p-2 rounded text-sm">{showModalRequest.purpose || '-'}</div>
+                <label className="label"><span className="label-text text-xs">Date of Usage</span></label>
+                {showModalRequest.startDate || showModalRequest.endDate ? (
+                  <div className="bg-base-300 p-3 rounded-lg">
+                    <div className="leading-tight">
+                      <div className="text-sm font-medium">
+                        {formatUsageDate(showModalRequest.startDate || showModalRequest.endDate)}
+                      </div>
+                      <div className="text-xs text-base-content/60">
+                        to {formatUsageDate(showModalRequest.endDate || showModalRequest.startDate)}
+                        {(showModalRequest.start || showModalRequest.end) ? ` • ${formatTime(showModalRequest.start)}–${formatTime(showModalRequest.end)}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-base-300 p-3 rounded-lg text-sm text-base-content/60">—</div>
+                )}
               </div>
-              <div className="form-control">
-                <label className="label"><span className="label-text text-xs">Start</span></label>
-                <div className="bg-base-300 p-2 rounded text-sm">{showModalRequest.startDate} {formatTime(showModalRequest.start)}</div>
-              </div>
-              <div className="form-control">
-                <label className="label"><span className="label-text text-xs">End</span></label>
-                <div className="bg-base-300 p-2 rounded text-sm">{showModalRequest.endDate} {formatTime(showModalRequest.end)}</div>
-              </div>
+
               <div className="form-control md:col-span-2">
                 <label className="label"><span className="label-text text-xs">Items</span></label>
-                <div className="bg-base-300 p-2 rounded">
-                  <ul className="space-y-1">
+                <div className="bg-base-300 p-3 rounded-lg">
+                  <ul className="space-y-2">
                     {showModalRequest.items?.map((item: any) => {
                       const equipment = equipmentList.find((e: any) => e.equipmentID === item.equipmentID);
                       return (
-                        <li key={item.equipmentID} className="flex justify-between text-sm">
-                          <span>{equipment?.name || item.name || item.equipmentID}</span>
-                          <span className="badge badge-sm">{item.qty} pcs</span>
+                        <li key={item.equipmentID} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="min-w-0 truncate">{equipment?.name || item.name || item.equipmentID}</span>
+                          <span className="badge badge-sm shrink-0">{item.qty} pcs</span>
                         </li>
                       );
                     })}
                   </ul>
-                  <div className="divider my-2"></div>
-                  <div className="flex justify-between text-sm font-medium">
+                  <div className="divider my-3" />
+                  <div className="flex items-center justify-between text-sm font-medium">
                     <span>Total</span>
                     <span>{(showModalRequest.items || []).reduce((acc: any, i: any) => acc + (i.qty || 0), 0)} pcs</span>
                   </div>
                 </div>
               </div>
+
               <div className="form-control md:col-span-2">
                 <label className="label"><span className="label-text text-xs">Admin Remarks</span></label>
-                <div className="bg-base-300 p-2 rounded text-sm whitespace-pre-wrap">{showModalRequest.declinedRemarks || showModalRequest.remarks || '—'}</div>
+                <div className="bg-base-300 p-3 rounded-lg text-sm whitespace-pre-wrap">
+                  {showModalRequest.declinedRemarks || showModalRequest.remarks || '—'}
+                </div>
               </div>
             </div>
             
@@ -972,3 +1193,4 @@ export default function HomeStudent() {
     </>
   );
 }
+

@@ -1,4 +1,4 @@
-// TODO: unify table into one component with home-student
+﻿// TODO: unify table into one component with home-student
 
 import React from 'react'
 import { useAuth } from '../../hooks/useAuth'
@@ -161,6 +161,18 @@ export default function TrackingPage(){
     if (s === 'returned' || s === 'completed') return <span className="badge badge-info gap-1"><RotateCcw className="w-3 h-3" />Returned</span>
     if (s === 'cancelled') return <span className="badge badge-neutral gap-1">Cancelled</span>
     return <span className="badge badge-ghost">{r.status}</span>
+  }
+
+  const formatUsageDate = (value?: string) => {
+    if (!value) return '—'
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!match) return value
+    const year = Number(match[1])
+    const month = Number(match[2]) - 1
+    const day = Number(match[3])
+    const parsed = new Date(year, month, day)
+    if (Number.isNaN(parsed.getTime())) return value
+    return parsed.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
   // Copy to clipboard
@@ -347,6 +359,7 @@ export default function TrackingPage(){
               <thead>
                 <tr>
                   <th>Purpose</th>
+                  <th>Date of Usage</th>
                   <th>Quantity</th>
                   <th>Request ID</th>
                   <th>Status</th>
@@ -356,7 +369,7 @@ export default function TrackingPage(){
               <tbody>
                 {visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-12">
+                    <td colSpan={6} className="text-center py-12">
                       <div className="flex flex-col items-center gap-2 text-base-content/60">
                         <MapPin className="w-12 h-12 opacity-30" />
                         <p className="font-medium">No requests found</p>
@@ -379,11 +392,19 @@ export default function TrackingPage(){
                     >
                       <td className="max-w-md">
                         <div className="font-medium">{r.purpose || 'Untitled Request'}</div>
-                        {r.duration && (
-                          <div className="text-xs text-base-content/60 mt-1 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {r.duration}
+                      </td>
+                      <td className="max-w-sm">
+                        {r.startDate || r.endDate ? (
+                          <div className="min-w-0 leading-tight">
+                            <p className="text-sm font-medium truncate">
+                              {formatUsageDate(r.startDate || r.endDate)}
+                            </p>
+                            <p className="text-xs text-base-content/60 truncate">
+                              to {formatUsageDate(r.endDate || r.startDate)}
+                            </p>
                           </div>
+                        ) : (
+                          <span className="text-sm text-base-content/40">—</span>
                         )}
                       </td>
                       <td>
@@ -574,3 +595,4 @@ function SearchIcon() {
     </svg>
   )
 }
+

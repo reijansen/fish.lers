@@ -270,8 +270,16 @@ const AdminDashboard: React.FC = () => {
           ...docSnap.data(),
         })) as Request[];
 
+        // Prefer the actual requester (student) id fields. Some legacy documents may
+        // have `createdBy` set to an admin actor, so keep it as a last-resort fallback.
         const getRequesterId = (d: any): string | undefined =>
-          d?.createdBy || d?.userID || d?.studentId || d?.studentID || undefined;
+          d?.studentUid ||
+          d?.studentUID ||
+          d?.userID ||
+          d?.studentId ||
+          d?.studentID ||
+          d?.createdBy ||
+          undefined;
 
         const uids = Array.from(new Set(data.map((d: any) => getRequesterId(d)).filter(Boolean) as string[]));
         const missingUids = uids.filter((uid) => !userNameCacheRef.current[uid]);
@@ -299,8 +307,11 @@ const AdminDashboard: React.FC = () => {
           const requesterId = getRequesterId(d);
           return {
             ...d,
-            createdByName: requesterId ? userNameCacheRef.current[requesterId] || requesterId : undefined,
-            createdBy: d?.createdBy || requesterId, // normalize so the rest of the UI fallback still works
+            createdByName: requesterId
+              ? userNameCacheRef.current[requesterId] || requesterId
+              : undefined,
+            // Normalize for the UI: `createdBy` should reflect the requester, not the admin actor.
+            createdBy: requesterId || d?.createdBy,
           };
         });
 
@@ -991,7 +1002,7 @@ const AdminDashboard: React.FC = () => {
           </div>
           <button
             className="btn btn-primary btn-sm min-h-11"
-            onClick={() => navigate('/admin/announcements/create')}
+            onClick={() => navigate('/admin/announcements', { state: { openCreate: true } })}
           >
             + Create Announcement
           </button>

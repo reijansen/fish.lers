@@ -76,8 +76,16 @@ export default function AddEquipmentDialog({ onAdd, categories }: AddEquipmentDi
       </button>
 
       {open && (
-        <div className="modal modal-open">
-          <div className="modal-box w-full max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6">
+        <div
+          className="modal modal-open"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
+        >
+          <div
+            className="modal-box w-full max-w-lg max-h-[85dvh] overflow-y-auto p-4 sm:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="font-bold text-lg mb-4">Add New Equipment</h3>
 
             {/* Pass the dynamic categories to the form */}

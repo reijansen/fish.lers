@@ -20,7 +20,6 @@ import AdminRequestHistory from "./pages/admin/AdminRequestHistory";
 import DataMigration from "./pages/admin/DataMigration";
 import SuperAdminActivityLog from "./pages/admin/SuperAdminActivityLog";
 import PermissionsMatrix from "./pages/admin/PermissionsMatrix";
-import CreateAnnouncement from "./pages/admin/CreateAnnouncement";
 import ManageAnnouncements from "./pages/admin/ManageAnnouncements";
 import { ToastProvider } from "./context/toastContext";
 
@@ -271,12 +270,8 @@ const App: React.FC = () => {
         <Route
           path="/admin/announcements/create"
           element={
-            <ProtectedRoute requireAdmin>
-              <AdminDrawerLayout>
-                <PageWithFooter>
-                  <CreateAnnouncement />
-                </PageWithFooter>
-              </AdminDrawerLayout>
+            <ProtectedRoute requireAdmin requireSuperAdmin>
+              <Navigate to="/admin/announcements" replace state={{ openCreate: true }} />
             </ProtectedRoute>
           }
         />

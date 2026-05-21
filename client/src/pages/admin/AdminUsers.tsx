@@ -381,6 +381,11 @@ export default function AdminUsers() {
                         isCurrentUser(user.uid) ? "ring-2 ring-info/40" : "hover:border-primary/40"
                       }`}
                       onClick={() => setSelectedUser(user)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") setSelectedUser(user)
+                      }}
                     >
                       <div className="card-body p-4 gap-3">
                         <div className="flex items-start justify-between gap-3">
@@ -493,7 +498,14 @@ export default function AdminUsers() {
                         isCurrentUser(user.uid)
                           ? 'bg-info/20 hover:bg-info/30 font-semibold'
                           : 'hover:bg-primary/10'
-                      }`} onClick={() => setSelectedUser(user)}>
+                      }`}
+                      onClick={() => setSelectedUser(user)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") setSelectedUser(user)
+                      }}
+                      >
                         <td>
                           <div className="flex items-center gap-3">
                             <div className="avatar">
