@@ -6,13 +6,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../firebase';
 import { isOngoing } from "../utils/requestTime"
-import { collection, query, limit, onSnapshot, where, doc as docRef, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { Bell, X, Eye, XCircle, RotateCcw, Copy, MapPin, Clock } from 'lucide-react';
+import { collection, query, orderBy, limit, onSnapshot, where, doc as docRef, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { Bell, X, Eye, XCircle, RotateCcw, Copy, MapPin, Clock, CheckCircle } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
 import MobileStatsPager from '../components/MobileStatsPager';
 import { useRequests } from '../hooks/useRequests'
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import { useAnnouncements } from '../hooks/useAnnouncements';
+import ConfirmDialog from '../components/confirmDialog';
 
 function formatDate(d: Date) {
   return d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -49,6 +50,16 @@ export default function HomeStudent() {
   const [showAllCount, setShowAllCount] = React.useState(5)
   const [showRemarksText, setShowRemarksText] = React.useState('')
   const [showRemarksOpen, setShowRemarksOpen] = React.useState(false)
+
+  const openConfirm = (
+    title: string,
+    message: string,
+    action: () => Promise<void> | void,
+    confirmClass = "btn-primary"
+  ) => {
+    setConfirmData({ title, message, action, confirmClass });
+    setConfirmOpen(true);
+  };
 
   React.useEffect(() => {
     if (!trackingRequests || trackingRequests.length === 0) {
@@ -104,6 +115,10 @@ export default function HomeStudent() {
         duration,
         totalQuantity,
         itemsList,
+        startDate: req.startDate,
+        endDate: req.endDate,
+        start: req.start,
+        end: req.end,
       }
     })
 
@@ -168,37 +183,59 @@ export default function HomeStudent() {
     }
   }
 
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+
+  const [confirmData, setConfirmData] = React.useState<{
+    title: string;
+    message: string;
+    action: () => Promise<void> | void;
+    confirmClass?: string;
+  } | null>(null);
+
   async function handleCancel(requestId: string) {
-    if (!confirm('Cancel this request? This will mark it as cancelled.')) return
-    try {
-      setBusyId(requestId)
-      await updateDoc(docRef(db, 'requests', requestId), {
-        status: 'cancelled',
-        cancelledAt: serverTimestamp(),
-      })
-      // snapshot will update the UI automatically
-    } catch (e) {
-      console.error('Failed to cancel request', e)
-      setAlertMessage('Failed to cancel request. Please try again.')
-    } finally {
-      setBusyId(null)
-    }
+    // if (!confirm('Cancel this request? This will mark it as cancelled.')) return
+    openConfirm(
+      "Cancel Request",
+      "Cancel this request? This will mark it as cancelled.",
+      async () => {
+        try {
+          setBusyId(requestId);
+          await updateDoc(docRef(db, 'requests', requestId), {
+            status: 'cancelled',
+            cancelledAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.error('Failed to cancel request', e);
+          setAlertMessage('Failed to cancel request. Please try again.');
+        } finally {
+          setBusyId(null);
+        }
+      },
+      "btn-error"
+    );
   }
 
   async function handleReturn(requestId: string) {
-    if (!confirm('Mark this request as returned? This will mark the item(s) as returned.')) return
-    try {
-      setBusyId(requestId)
-      await updateDoc(docRef(db, 'requests', requestId), {
-        status: 'returned',
-        returnedAt: serverTimestamp(),
-      })
-    } catch (e) {
-      console.error('Failed to mark request returned', e)
-      setAlertMessage('Failed to mark returned. Please try again.')
-    } finally {
-      setBusyId(null)
-    }
+    // if (!confirm('Mark this request as returned? This will mark the item(s) as returned.')) return
+    openConfirm(
+      "Return Equipment",
+      "Mark this request as returned?",
+      async () => {
+        try {
+          setBusyId(requestId);
+          await updateDoc(docRef(db, 'requests', requestId), {
+            status: 'returned',
+            returnedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.error('Failed to mark request returned', e);
+          setAlertMessage('Failed to mark returned. Please try again.');
+        } finally {
+          setBusyId(null);
+        }
+      },
+      "btn-success"
+    );
   }
 
   // mark current statuses as seen (store in localStorage)
@@ -235,12 +272,12 @@ export default function HomeStudent() {
   // Status badge helper
   const getStatusBadge = (r: any) => {
     const s = (r.status || '').toLowerCase();
-    if (s === 'approved' && isOngoing(r)) return <span className="badge badge-success">Ongoing</span>;
-    if (s === 'approved' && !isOngoing(r)) return <span className="badge badge-success">Approved</span>;
-    if (s === 'pending') return <span className="badge badge-warning">Pending</span>;
-    if (s === 'declined' || s === 'rejected') return <span className="badge badge-error">Rejected</span>;
-    if (s === 'returned' || s === 'completed') return <span className="badge badge-info">Completed</span>;
-    if (s === 'cancelled') return <span className="badge badge-neutral">Cancelled</span>;
+    if (s === 'approved' && isOngoing(r)) return <span className="badge badge-success gap-1"><Clock className="w-3 h-3" />Ongoing</span>
+    if (s === 'approved' && !isOngoing(r)) return <span className="badge badge-success gap-1"><CheckCircle className="w-3 h-3" />Approved</span>
+    if (s === 'pending') return <span className="badge badge-warning gap-1"><Clock className="w-3 h-3" />Pending</span>
+    if (s === 'declined' || s === 'rejected') return <span className="badge badge-error gap-1"><XCircle className="w-3 h-3" />Declined</span>
+    if (s === 'returned' || s === 'completed') return <span className="badge badge-info gap-1"><RotateCcw className="w-3 h-3" />Returned</span>
+    if (s === 'cancelled') return <span className="badge badge-neutral gap-1">Cancelled</span>
     return <span className="badge">{r.status}</span>;
   };
 
@@ -458,6 +495,7 @@ export default function HomeStudent() {
           { label: "Total", value: trackingRequests.length },
           { label: "Pending", value: trackingRequests.filter(r => (r.status).toLowerCase() === 'pending').length, colorClass: "text-warning" },
           { label: "Approved", value: trackingRequests.filter(r => r.status?.toLowerCase() === 'approved').length, colorClass: "text-success" },
+          { label: "Ongoing", value: trackingRequests.filter(r => r.status?.toLowerCase() === 'approved' && isOngoing(r)).length, colorClass: "text-success" },
           { label: "Completed", value: trackingRequests.filter(r => ['completed', 'returned'].includes((r.status || '').toLowerCase())).length, colorClass: "text-info" },
           { label: "Accountabilities", value: accountabilities.filter(a => { const s = (a.status || '').toLowerCase(); return s !== 'resolved' && s !== 'completed'; }).length, colorClass: "text-error" },
         ]}
@@ -477,6 +515,11 @@ export default function HomeStudent() {
           <div className="stat-title">Approved</div>
           <div className="stat-value text-success">{trackingRequests.filter(r => r.status?.toLowerCase() === 'approved').length}</div>
           
+        </div>
+        <div className="stat">
+          <div className="stat-title">Ongoing</div>
+          <div className="stat-value text-success">{trackingRequests.filter(r => r.status?.toLowerCase() === 'approved' && isOngoing(r)).length}</div>
+      
         </div>
         <div className="stat">
           <div className="stat-title">Completed</div>
@@ -510,11 +553,11 @@ export default function HomeStudent() {
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'pending' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('pending')}>
                 Pending ({pendingCount})
               </a>
-              <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'ongoing' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('ongoing')}>
-                Ongoing ({ongoingCount})
-              </a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'approved' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('approved')}>
                 Approved ({approvedCount})
+              </a>
+              <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'ongoing' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('ongoing')}>
+                Ongoing ({ongoingCount})
               </a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${filter === 'completed' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setFilter('completed')}>
                 Completed ({completedCount})
@@ -604,7 +647,7 @@ export default function HomeStudent() {
 
           {/* Desktop table */}
           <div className="hidden lg:block overflow-x-auto">
-            <table className="table min-w-[720px]">
+            <table className="table min-w-[820px]">
               <thead>
                 <tr>
                   <th>Purpose</th>
@@ -638,6 +681,8 @@ export default function HomeStudent() {
                       id={`req-${r.requestId}`}
                       className={`hover ${highlightedId === r.requestId ? 'bg-primary/20 animate-pulse' : ''}`}
                     >
+
+                      {/* Purpose */}
                       <td className="max-w-md">
                         <div className="font-medium">{r.purpose || 'Untitled Request'}</div>
                         {r.duration && (
@@ -647,6 +692,8 @@ export default function HomeStudent() {
                           </div>
                         )}
                       </td>
+
+                      {/* Quantity */}
                       <td>
                         {r.itemsList ? (
                           <div className="tooltip" data-tip={r.itemsList}>
@@ -660,40 +707,40 @@ export default function HomeStudent() {
                           </span>
                         )}
                       </td>
+
+                      {/* Status */}
                       <td>
-                        <div className="flex items-center gap-2">
-                          <code className="text-xs bg-base-300 px-2 py-1 rounded font-mono">
-                            {r.requestId?.slice(0, 8)}...
-                          </code>
-                          <button
-                            className="btn btn-ghost btn-xs btn-circle tooltip"
-                            data-tip={copiedId === r.requestId ? 'Copied!' : 'Copy ID'}
-                            onClick={() => copyToClipboard(r.requestId)}
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => openRequestDetails(r.requestId)}
-                          >
-                            Details
-                          </button>
-                        </div>
+                        {getStatusBadge(r)}
                       </td>
-                      <td>{getStatusBadge(r)}</td>
+
+                      {/* Action */}
                       <td>
-                        {r.remarks ? (
-                          <button 
-                            className="btn btn-ghost btn-sm gap-1" 
-                            onClick={() => { setShowRemarksText(r.remarks); setShowRemarksOpen(true); }}
+                        {(r.status || '').toLowerCase() === 'approved' ? (
+                          <button
+                            className="btn btn-success btn-sm gap-2"
+                            onClick={() => handleReturn(r.requestId)}
+                            disabled={busyId === r.requestId}
                           >
-                            <Eye className="w-4 h-4" />
-                            View
+                            <RotateCcw className="w-4 h-4" />
+                            {busyId === r.requestId
+                              ? 'Returning...'
+                              : 'Return'}
                           </button>
                         ) : (
-                          <span className="text-sm text-base-content/40">—</span>
+                          <span className="text-base-content/40 text-sm">
+                            —
+                          </span>
                         )}
+                      </td>
+
+                      {/* View */}
+                      <td>
+                        <button
+                          className="btn btn-ghost btn-sm btn-circle"
+                          onClick={() => openRequestDetails(r.requestId)}
+                        >
+                          <Eye className='w-4 h-4' />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -783,8 +830,36 @@ export default function HomeStudent() {
             </div>
             
             <div className="modal-action">
-              <button className="btn" onClick={() => setShowModalRequest(null)}>Close</button>
+              {(showModalRequest.status || '').toLowerCase() === 'approved' && (
+                <button
+                  className="btn btn-success gap-2"
+                  onClick={() => handleReturn(showModalRequest.id)}
+                  disabled={busyId === showModalRequest.id}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  {busyId === showModalRequest.id ? 'Returning...' : 'Return Equipment'}
+                </button>
+              )}
+
+              {(showModalRequest.status || '').toLowerCase() === 'pending' && (
+                <button
+                  className="btn btn-error gap-2"
+                  onClick={() => handleCancel(showModalRequest.id)}
+                  disabled={busyId === showModalRequest.id}
+                >
+                  <XCircle className="w-4 h-4" />
+                  {busyId === showModalRequest.id ? 'Cancelling...' : 'Cancel Request'}
+                </button>
+              )}
+
+              <button
+                className="btn"
+                onClick={() => setShowModalRequest(null)}
+              >
+                Close
+              </button>
             </div>
+
           </div>
           <form method="dialog" className="modal-backdrop">
             <button onClick={() => setShowModalRequest(null)}>close</button>
@@ -875,7 +950,23 @@ export default function HomeStudent() {
           </form>
         </dialog>
       )}
+      
     </div>
+    <ConfirmDialog
+      open={confirmOpen}
+      title={confirmData?.title}
+      message={confirmData?.message || ""}
+      confirmClass={confirmData?.confirmClass}
+      onCancel={() => {
+        setConfirmOpen(false);
+        setConfirmData(null);
+      }}
+      onConfirm={async () => {
+        await confirmData?.action();
+        setConfirmOpen(false);
+        setConfirmData(null);
+      }}
+    />
     </>
   );
 }
