@@ -469,6 +469,58 @@ export default function Analytics() {
     });
   }, [filteredRequests, userLabelMap]);
 
+  const handlePrint = React.useCallback(async () => {
+    const canvases = Array.from(document.querySelectorAll("canvas")) as HTMLCanvasElement[];
+    const replacements: { canvas: HTMLCanvasElement; img: HTMLImageElement }[] = [];
+
+    for (const c of canvases) {
+      try {
+        const data = c.toDataURL("image/png");
+        const img = document.createElement("img");
+        img.src = data;
+        img.style.maxWidth = "100%";
+        img.style.height = "auto";
+        img.className = "print-replacement";
+        c.style.display = "none";
+        c.parentElement?.insertBefore(img, c);
+        replacements.push({ canvas: c, img });
+      } catch (e) {
+        // ignore canvases that cannot be serialized
+      }
+    }
+
+    const cleanup = () => {
+      for (const r of replacements) {
+        try {
+          r.img.remove();
+          r.canvas.style.display = "";
+        } catch (e) {
+          // ignore
+        }
+      }
+      window.removeEventListener("afterprint", cleanup);
+    };
+
+    window.addEventListener("afterprint", cleanup);
+
+    // Wait for generated images to finish loading before printing
+    try {
+      await Promise.all(
+        replacements.map(
+          (r) =>
+            new Promise<void>((resolve) => {
+              if (r.img.complete) return resolve();
+              r.img.onload = r.img.onerror = () => resolve();
+            })
+        )
+      );
+      window.print();
+    } finally {
+      // Fallback restore in case afterprint doesn't fire
+      setTimeout(cleanup, 1500);
+    }
+  }, []);
+
   if (loading) {
     return (
       <div className="p-3 sm:p-4 lg:p-6">
@@ -482,7 +534,7 @@ export default function Analytics() {
 
   return (
     <div className="space-y-5 sm:space-y-7">
-      <div className="relative overflow-hidden rounded-box border border-base-300 bg-gradient-to-br from-primary/10 via-base-100 to-secondary/10 p-4 sm:p-6 shadow-sm">
+      <div className="relative overflow-hidden print:overflow-visible rounded-box border border-base-300 bg-gradient-to-br from-primary/10 via-base-100 to-secondary/10 p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Analytics Command Center</h1>
@@ -498,145 +550,7 @@ export default function Analytics() {
           </div>
 
           <div className="w-full lg:w-auto">
-            {/* Mobile: collapsible filters */}
-            <div className="lg:hidden collapse collapse-arrow border border-base-300 bg-base-100/70 shadow-sm">
-              <input type="checkbox" />
-              <div className="collapse-title p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Filter className="w-4 h-4" />
-                    Global filters
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      className="btn btn-xs btn-outline gap-1"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        downloadCsv(`fishlers_analytics_${new Date().toISOString().slice(0, 10)}.csv`, exportRows());
-                      }}
-                      type="button"
-                    >
-                      <Download className="w-4 h-4" />
-                      CSV
-                    </button>
-                    <button
-                      className="btn btn-xs btn-outline gap-1"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        window.print();
-                      }}
-                      type="button"
-                    >
-                      <Printer className="w-4 h-4" />
-                      Print
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="collapse-content px-3 pb-3">
-                <div className="grid grid-cols-1 gap-2">
-                  <label className="form-control">
-                    <div className="label py-0">
-                      <span className="label-text text-xs">Date range</span>
-                    </div>
-                    <select
-                      className="select select-bordered select-sm"
-                      value={datePreset}
-                      onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-                    >
-                      <option value="7d">Last 7 days</option>
-                      <option value="30d">Last 30 days</option>
-                      <option value="90d">Last 90 days</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </label>
-
-                  <label className="form-control">
-                    <div className="label py-0">
-                      <span className="label-text text-xs">Request status</span>
-                    </div>
-                    <select
-                      className="select select-bordered select-sm"
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                      <option value="all">All</option>
-                      <option value="pending">Pending</option>
-                      <option value="approved">Approved</option>
-                      <option value="rejected">Rejected</option>
-                      <option value="ongoing">Ongoing</option>
-                      <option value="returned">Returned</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </label>
-
-                  <label className="form-control">
-                    <div className="label py-0">
-                      <span className="label-text text-xs">Equipment category</span>
-                    </div>
-                    <select
-                      className="select select-bordered select-sm"
-                      value={categoryFilter}
-                      onChange={(e) => setCategoryFilter(e.target.value)}
-                    >
-                      <option value="all">All categories</option>
-                      {categoryOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="form-control">
-                    <div className="label py-0">
-                      <span className="label-text text-xs">User type</span>
-                    </div>
-                    <select
-                      className="select select-bordered select-sm"
-                      value={userTypeFilter}
-                      onChange={(e) => setUserTypeFilter(e.target.value)}
-                    >
-                      <option value="all">All users</option>
-                      <option value="student">Students</option>
-                      <option value="admin">Admins</option>
-                    </select>
-                  </label>
-                </div>
-
-                {datePreset === "custom" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                    <label className="form-control">
-                      <div className="label py-0">
-                        <span className="label-text text-xs">From</span>
-                      </div>
-                      <input
-                        type="date"
-                        className="input input-bordered input-sm"
-                        value={customFrom}
-                        onChange={(e) => setCustomFrom(e.target.value)}
-                      />
-                    </label>
-                    <label className="form-control">
-                      <div className="label py-0">
-                        <span className="label-text text-xs">To</span>
-                      </div>
-                      <input
-                        type="date"
-                        className="input input-bordered input-sm"
-                        value={customTo}
-                        onChange={(e) => setCustomTo(e.target.value)}
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Desktop: always-visible filters */}
-            <div className="hidden lg:block card bg-base-100/70 border border-base-300 shadow-sm">
+            <div className="card bg-base-100/70 border border-base-300 shadow-sm">
               <div className="card-body p-3 sm:p-4 gap-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm font-semibold">
@@ -652,7 +566,7 @@ export default function Analytics() {
                       <Download className="w-4 h-4" />
                       CSV
                     </button>
-                    <button className="btn btn-sm btn-outline gap-2" onClick={() => window.print()} type="button">
+                    <button className="btn btn-sm btn-outline gap-2" onClick={handlePrint} type="button">
                       <Printer className="w-4 h-4" />
                       Print/PDF
                     </button>
@@ -1282,7 +1196,7 @@ export default function Analytics() {
               </button>
             </div>
           </div>
-          </div>
+        </div>
 
           <div className="card bg-base-100 border border-base-300 shadow-sm">
             <div className="card-body p-4 sm:p-5 gap-3">
@@ -1313,13 +1227,7 @@ export default function Analytics() {
                   Reservation conflicts
                 </h3>
 
-                <span
-                  className={`badge ${
-                    reservationConflicts.length > 0
-                      ? "badge-error"
-                      : "badge-success"
-                  }`}
-                >
+                <span className={`badge ${reservationConflicts.length > 0 ? "badge-error" : "badge-success"}`}>
                   {reservationConflicts.length}
                 </span>
               </div>

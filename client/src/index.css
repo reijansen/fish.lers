@@ -135,3 +135,90 @@ html[data-theme="night"], :root[data-theme="night"] {
 .chat-scrollbar::-webkit-scrollbar-thumb:hover {
 	background-color: hsl(var(--b2));
 }
+
+/* Print fixes: allow multi-page printing and preserve charts/images */
+@media print {
+	html, body, #root { height: auto !important; }
+	body {
+		background: #fff !important;
+		color: #000 !important;
+		-webkit-print-color-adjust: exact;
+		color-adjust: exact;
+	}
+
+	/* Make elements that usually hide overflow visible for print */
+	.overflow-hidden, .modal, .modal-backdrop {
+		overflow: visible !important;
+	}
+
+	/* Allow content to break across pages when needed */
+	.card, .card-body, .rounded-box, .analytics-section, .space-y-*, .grid {
+		break-inside: auto !important;
+		page-break-inside: auto !important;
+	}
+
+	/* Avoid fixed-position UI (navbars, toolbars) in the printout */
+	header, nav, .no-print, .print-hide, .topbar, .sidebar {
+		display: none !important;
+	}
+
+	/* Ensure images / canvases / svgs scale and render */
+	img, svg, canvas {
+		max-width: 100% !important;
+		height: auto !important;
+	}
+
+	/* Small UI tweaks for better pagination */
+	.btn, .btn-sm, .badge, .input, .select {
+		display: inline !important;
+		page-break-inside: avoid;
+	}
+
+	/* Remove large shadows / gradients which can break layout */
+	.shadow, .shadow-sm, .bg-gradient-to-br {
+		box-shadow: none !important;
+		background: transparent !important;
+	}
+
+	/* Prevent huge gaps: let large containers span pages */
+	main, .card, .card-body {
+		page-break-after: auto;
+		page-break-before: auto;
+	}
+
+	/* Ensure page sizing and margins are reasonable */
+	@page { size: auto; margin: 12mm; }
+
+	/* Make everything printable: remove fixed positioning and force auto heights */
+	*,
+	*::before,
+	*::after {
+		overflow: visible !important;
+		height: auto !important;
+		-webkit-print-color-adjust: exact;
+		color-adjust: exact;
+		-webkit-box-shadow: none !important;
+		box-shadow: none !important;
+		background: transparent !important;
+	}
+
+	/* Disable fixed/sticky elements that can overlap pages */
+	.fixed, .sticky, [style*="position:fixed"], [style*="position:sticky"] {
+		position: static !important;
+	}
+
+	/* Print replacement images should render and avoid breaking inside */
+	.print-replacement {
+		display: block !important;
+		max-width: 100% !important;
+		height: auto !important;
+		page-break-inside: avoid !important;
+	}
+
+	/* Ensure svg/canvas elements render properly */
+	svg, canvas {
+		max-width: 100% !important;
+		height: auto !important;
+		page-break-inside: avoid !important;
+	}
+}
