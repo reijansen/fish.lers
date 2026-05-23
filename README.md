@@ -271,6 +271,77 @@ Additionally, an explicit Controller layer has been introduced through Express r
 	
 Finally, the overall project has transitioned from a single-layer client-centric structure to a layered, distributed architecture consistent with the FERN-MVC pattern. This transformation improves maintainability, enforces separation of concerns, enhances security, and increases scalability.
 
+## Deployment
+
+FishLERS is deployed using a multi-platform architecture with the following component:
+
+**Frontend Deployment**
+- Platform: Vercel
+- Technology: React + Vite
+- URL: https://fishlers.vercel.app/
+- Auto-deployment: Enabled on push to main branch
+- Environment Variables: Firebase config, API base URL
+
+**Backend Deployment**
+- Platform: Render
+- Technology: Node.js + Express
+- URL:
+- Database: Firebase, MongoDB Atlas (Backup DB)
+
+**Real-time Communication**
+- Technology: Socket.IO
+- Redis Adapter: Upstash Redis
+- Purpose: Real-time chat, notifications, and live updates
+- Configuration: Socket.IO server on Render connects to Upstash Redis for message queuing and adapter
+
+**Deployment Steps**
+**1. Frontend (Vercel)**
+```bash
+# Connect GitHub repository to Vercel
+# Configure environment variables:
+# - VITE_API_URL=<Render backend URL>
+# - VITE_FIREBASE_CONFIG=<firebase config>
+
+# Auto-deploys on push to main
+```
+
+**2. Backend (Render)**
+```bash
+# Deploy Express server from GitHub
+# Set environment variables:
+# - FIREBASE_PROJECT_ID
+# - FIREBASE_PRIVATE_KEY
+# - FIREBASE_CLIENT_EMAIL
+# - MONGODB_URI=<Atlas connection string>
+# - UPSTASH_REDIS_URL
+
+# Server auto-restarts on code push
+```
+
+**3. Real-time Setup (Upstash Redis + Socket.IO)**
+```bash
+# Create Upstash Redis instance
+# Add Redis URL to Render environment: UPSTASH_REDIS_URL
+
+# Socket.IO configured with:
+# - Redis adapter for horizontal scaling
+# - CORS enabled for Vercel frontend
+# - Authentication via Firebase tokens
+```
+
+### Monitoring & Maintenance
+- **Frontend:** Vercel Analytics dashboard
+- **Backend:** Render logs and metrics
+- **Database:** Firestore console
+- **Real-time:** Upstash Redis console for message queue health
+- **Uptime:** All services monitored for health and performance
+
+### Backup & Recovery
+- MongoDB continuously syncs from Firestore via `firestoreListener`
+- If Firestore is unavailable, system falls back to MongoDB
+- Chat history, users, equipment, and requests persist in MongoDB backup
+- Manual Firestore exports available via Firebase console
+
 **Conclusion**
 
 The original project structure was functionally adequate but architecturally informal. Its lack of separation between presentation, business logic, and data access created tight coupling and long-term scalability concerns. The refactored FERN-MV structure introduces clear boundaries between layers, centralizes control logic within the server, and formalizes the Model abstraction. As a result, the system becomes more modular, secure, maintainable, and aligned with established software architecture principles. 
