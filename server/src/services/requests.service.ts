@@ -154,6 +154,20 @@ export class RequestService {
     return await RequestRepository.getOngoingReservationSummary();
   }
 
+  static async getPendingReservationSummary(): Promise<Record<string, number>> {
+    return await RequestRepository.getPendingReservationSummary();
+  }
+
+  static async getReservationSummaryForRange(
+    startDate: string,
+    endDate: string
+  ): Promise<Record<string, number>> {
+    if (!startDate || !endDate) {
+      throw new Error("startDate and endDate are required");
+    }
+    return await RequestRepository.getReservationSummaryForRange(startDate, endDate);
+  }
+
   /**
    * Update a request (by requester or admin).
    * Status transitions are validated.

@@ -5,6 +5,7 @@ import CategoryDialog from "./CategoryDialog";
 import { db } from "../../firebase";
 import { Equipment, Category } from "../../db";
 import { logicEquipment } from "./logicEquipment";
+import { getOngoingReservationSummary } from "../../api/requests.api";
 import AddEquipmentDialog from "./AddEquipmentDialog";
 import EquipmentTable from "./EquipmentTable";
 import EquipmentCardList from "./EquipmentCardList";
@@ -35,6 +36,7 @@ export default function Dashboard() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [tab, setTab] = useState<"active" | "archived" | "purged">("active");
   const [purgedEquipment, setPurgedEquipment] = useState<Equipment[]>([]);
+  const [pendingByEquipment, setPendingByEquipment] = useState<Record<string, number>>({});
 
   // --- FIRESTORE SUBSCRIPTIONS ---
 
@@ -66,28 +68,62 @@ export default function Dashboard() {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const fetchPendingSummary = async () => {
+      try {
+        const summary = await getOngoingReservationSummary();
+        if (!cancelled) setPendingByEquipment(summary || {});
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Failed to fetch ongoing summary:", error);
+          setPendingByEquipment({});
+        }
+      }
+    };
+
+    fetchPendingSummary();
+    timer = setInterval(fetchPendingSummary, 20_000);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, []);
+
   // --- COMPUTED VALUES ---
 
+  const equipmentWithPending = useMemo(
+    () =>
+      equipmentList.map((item) => ({
+        ...item,
+        reserved: pendingByEquipment[item.equipmentID || ""] || 0,
+      })),
+    [equipmentList, pendingByEquipment]
+  );
+
   const stats = useMemo(() => {
-    const totalQuantity = equipmentList.reduce((sum, item) => sum + (item.totalInventory ?? 0), 0);
-    const disposableCount = equipmentList.filter((item) => item.isDisposable).length;
-    const lowStockCount = equipmentList.filter(
+    const totalQuantity = equipmentWithPending.reduce((sum, item) => sum + (item.totalInventory ?? 0), 0);
+    const disposableCount = equipmentWithPending.filter((item) => item.isDisposable).length;
+    const lowStockCount = equipmentWithPending.filter(
       (item) => (item.totalInventory ?? 0) <= LOW_STOCK_THRESHOLD
     ).length;
 
     return { totalQuantity, disposableCount, lowStockCount };
-  }, [equipmentList]);
+  }, [equipmentWithPending]);
 
   const filteredEquipment = useMemo(() => {
     const search = debouncedSearchTerm.trim().toLowerCase();
-    let baseList = equipmentList;
+    let baseList = equipmentWithPending;
 
     if (tab === "active") {
-      baseList = equipmentList.filter(item => !item.isDeleted);
+      baseList = equipmentWithPending.filter(item => !item.isDeleted);
     } else if (tab === "archived") {
-      baseList = equipmentList.filter(item => item.isDeleted);
+      baseList = equipmentWithPending.filter(item => item.isDeleted);
     } else {
-      baseList = purgedEquipment;
+      baseList = purgedEquipment.map((item) => ({ ...item, reserved: 0 }));
     }
 
     const filtered = baseList.filter((item) => {
@@ -112,7 +148,7 @@ export default function Dashboard() {
       const nameB = (b.name || "").toLowerCase();
       return sortOrder === "asc" ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
     });
-  }, [equipmentList, purgedEquipment, debouncedSearchTerm, categoryFilter, typeFilter, sortOrder, tab]);
+  }, [equipmentWithPending, purgedEquipment, debouncedSearchTerm, categoryFilter, typeFilter, sortOrder, tab]);
 
   const filtersActive = searchTerm.trim().length > 0 || categoryFilter !== "all" || typeFilter !== "all";
 

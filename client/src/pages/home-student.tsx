@@ -5,12 +5,12 @@ import { logicEquipment } from './equipment/logicEquipment';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../firebase';
-import { isOngoing } from "../utils/requestTime"
 import { collection, query, orderBy, limit, onSnapshot, where, doc as docRef, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Bell, X, Eye, XCircle, RotateCcw, Copy, MapPin, Clock, CheckCircle } from 'lucide-react';
 import LoadingOverlay from '../components/LoadingOverlay';
 import MobileStatsPager from '../components/MobileStatsPager';
 import { useRequests } from '../hooks/useRequests'
+import * as requestsApi from '../api/requests.api'
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import { useAnnouncements } from '../hooks/useAnnouncements';
 import ConfirmDialog from '../components/confirmDialog';
@@ -51,6 +51,10 @@ export default function HomeStudent() {
   const [showAllCount, setShowAllCount] = React.useState(5)
   const [showRemarksText, setShowRemarksText] = React.useState('')
   const [showRemarksOpen, setShowRemarksOpen] = React.useState(false)
+  const [getModalRequest, setGetModalRequest] = React.useState<any | null>(null)
+  const [staffName, setStaffName] = React.useState('')
+  const [returnModalRequest, setReturnModalRequest] = React.useState<any | null>(null)
+  const [returnStaffName, setReturnStaffName] = React.useState('')
 
   const openConfirm = (
     title: string,
@@ -163,6 +167,14 @@ export default function HomeStudent() {
     setRows(docs)
   }, [trackingRequests, equipmentList])
 
+  React.useEffect(() => {
+    const normalized = (trackingRequests || []).map((req: any) => ({
+      ...req,
+      id: req.id || req.requestID || "",
+    })).filter((req: any) => !!req.id)
+    setRequests(normalized)
+  }, [trackingRequests])
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
     setCopiedId(text)
@@ -174,8 +186,8 @@ export default function HomeStudent() {
       const s = (r.status || '').toLowerCase()
       if (filter === 'all') return true
       if (filter === 'pending') return s === 'pending'
-      if (filter === 'ongoing') return s === 'approved' && isOngoing(r)
-      if (filter === 'approved') return s === 'approved' && !isOngoing(r)
+      if (filter === 'ongoing') return s === 'ongoing'
+      if (filter === 'approved') return s === 'approved'
       if (filter === 'completed') return s === 'completed' || s === 'returned'
       if (filter === 'declined') return s === 'declined' || s === 'rejected'
       if (filter === 'rejected_cancelled') return s === 'declined' || s === 'rejected' || s === 'cancelled'
@@ -269,28 +281,32 @@ export default function HomeStudent() {
     );
   }
 
-  async function handleReturn(requestId: string) {
-    // if (!confirm('Mark this request as returned? This will mark the item(s) as returned.')) return
-    openConfirm(
-      "Return Equipment",
-      "Mark this request as returned?",
-      async () => {
-        try {
-          setBusyId(requestId);
-          await updateDoc(docRef(db, 'requests', requestId), {
-            status: 'returned',
-            returnedAt: serverTimestamp(),
-          });
-          window.location.reload();
-        } catch (e) {
-          console.error('Failed to mark request returned', e);
-          setAlertMessage('Failed to mark returned. Please try again.');
-        } finally {
-          setBusyId(null);
-        }
-      },
-      "btn-success"
-    );
+  async function handleReturn(requestId: string, handedTo: string) {
+    if (!handedTo.trim()) {
+      setAlertMessage('Please enter the staff name who received the equipment.')
+      return
+    }
+    try {
+      setBusyId(requestId);
+      await requestsApi.markReturned(requestId);
+      try {
+        await requestsApi.updateRequest(requestId, {
+          status: 'returned',
+          returnedToStaffName: handedTo.trim(),
+          returnedAtClient: new Date().toISOString() as any,
+        } as any);
+      } catch (metaErr) {
+        console.warn('Marked returned but failed to save staff metadata:', metaErr);
+      }
+      setReturnModalRequest(null)
+      setReturnStaffName('')
+      window.location.reload();
+    } catch (e) {
+      console.error('Failed to mark request returned', e);
+      setAlertMessage('Failed to mark returned. Please try again.');
+    } finally {
+      setBusyId(null);
+    }
   }
 
   // mark current statuses as seen (store in localStorage)
@@ -318,8 +334,8 @@ export default function HomeStudent() {
 
   // Stats
   const pendingCount = rows.filter(r => r.status?.toLowerCase() === 'pending').length
-  const ongoingCount = rows.filter(r => r.status?.toLowerCase() === 'approved' && isOngoing(r)).length
-  const approvedCount = rows.filter(r => r.status?.toLowerCase() === 'approved' && !isOngoing(r)).length
+  const ongoingCount = rows.filter(r => r.status?.toLowerCase() === 'ongoing').length
+  const approvedCount = rows.filter(r => r.status?.toLowerCase() === 'approved').length
   const declinedCount = rows.filter(r => ['declined', 'rejected'].includes((r.status || '').toLowerCase())).length
   const rejectedCancelledCount = rows.filter(r => ['declined', 'rejected', 'cancelled'].includes((r.status || '').toLowerCase())).length
   const resolvedAccountabilities = accountabilities.filter((a) => {
@@ -333,8 +349,8 @@ export default function HomeStudent() {
   // Status badge helper
   const getStatusBadge = (r: any) => {
     const s = (r.status || '').toLowerCase();
-    if (s === 'approved' && isOngoing(r)) return <span className="badge badge-success gap-1"><Clock className="w-3 h-3" />Ongoing</span>
-    if (s === 'approved' && !isOngoing(r)) return <span className="badge badge-success gap-1"><CheckCircle className="w-3 h-3" />Approved</span>
+    if (s === 'ongoing') return <span className="badge badge-success gap-1"><Clock className="w-3 h-3" />Ongoing</span>
+    if (s === 'approved') return <span className="badge badge-success gap-1"><CheckCircle className="w-3 h-3" />Approved</span>
     if (s === 'pending') return <span className="badge badge-warning gap-1"><Clock className="w-3 h-3" />Pending</span>
     if (s === 'declined' || s === 'rejected') return <span className="badge badge-error gap-1"><XCircle className="w-3 h-3" />Declined</span>
     if (s === 'returned' || s === 'completed') return <span className="badge badge-info gap-1"><RotateCcw className="w-3 h-3" />Returned</span>
@@ -347,6 +363,34 @@ export default function HomeStudent() {
       .split(/[\n,]+/)
       .map(part => part.trim())
       .filter(Boolean)
+  }
+
+  async function handleGet(requestId: string, issuedBy: string) {
+    if (!issuedBy.trim()) {
+      setAlertMessage('Please enter the staff name who handed the equipment.')
+      return
+    }
+    try {
+      setBusyId(requestId);
+      await requestsApi.markOngoing(requestId);
+      try {
+        await requestsApi.updateRequest(requestId, {
+          status: 'ongoing',
+          ...(issuedBy.trim() ? { issuedByStaffName: issuedBy.trim() } : {}),
+          claimedAt: new Date().toISOString() as any,
+        } as any);
+      } catch (metaErr) {
+        console.warn('Marked ongoing but failed to save staff metadata:', metaErr);
+      }
+      setGetModalRequest(null)
+      setStaffName('')
+      window.location.reload();
+    } catch (e) {
+      console.error('Failed to mark request as ongoing', e);
+      setAlertMessage('Failed to mark as ongoing. Please try again.');
+    } finally {
+      setBusyId(null);
+    }
   }
 
   const truncate = (text: string, max = 80) => {
@@ -375,6 +419,9 @@ export default function HomeStudent() {
     const info = acc.requestId ? accountabilityRequestInfo[acc.requestId] : null
     return formatDateTime(info?.createdAt || acc.createdAt) || (acc.due ? `Due ${acc.due}` : '')
   }
+
+  const canReturnRequest = (req: any) => (req?.status || '').toLowerCase() === 'ongoing'
+  const canGetRequest = (req: any) => (req?.status || '').toLowerCase() === 'approved'
 
   React.useEffect(() => {
     if (!user) {
@@ -488,6 +535,92 @@ export default function HomeStudent() {
     }
   }, [accountabilities, accountabilityRequestInfo])
 
+  React.useEffect(() => {
+    if (!requests.length) {
+      setRecentNotifications([])
+      setNotifications([])
+      return
+    }
+
+    try {
+      const seenRaw = localStorage.getItem('studentSeenStatuses')
+      const historyRaw = localStorage.getItem('studentNotificationHistory')
+
+      let history: any[] = []
+      try {
+        const parsed = JSON.parse(historyRaw || '[]')
+        if (Array.isArray(parsed)) history = parsed
+      } catch {
+        history = []
+      }
+
+      const buildEntry = (req: any, oldStatus?: string) => {
+        const status = (req.status || 'pending').toString()
+        return {
+          id: req.id,
+          purpose: req.purpose || 'Request update',
+          oldStatus: oldStatus || status,
+          status,
+          adminRemarks: req.rejectionReason || req.declinedRemarks || req.remarks || '',
+          actionAt: formatDateTime(req.updatedAt || req.returnedAt || req.reviewedAt || req.createdAt),
+          timestamp: Date.now(),
+        }
+      }
+
+      if (!seenRaw) {
+        const initialMap: Record<string, string> = {}
+        requests.forEach((r: any) => {
+          initialMap[r.id] = (r.status || 'pending').toString()
+        })
+        localStorage.setItem('studentSeenStatuses', JSON.stringify(initialMap))
+
+        const seeded = requests.map((r: any) => buildEntry(r)).slice(-200)
+        localStorage.setItem('studentNotificationHistory', JSON.stringify(seeded))
+        setRecentNotifications([])
+        setNotifications(seeded.slice().sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)))
+        return
+      }
+
+      const seenMap: Record<string, string> = JSON.parse(seenRaw || '{}')
+      const changes: any[] = []
+      const historyKeys = new Set(history.map((entry: any) => `${entry.id}:${entry.oldStatus}->${entry.status}`))
+
+      requests.forEach((req: any) => {
+        const currentStatus = (req.status || 'pending').toString()
+        const prevStatus = seenMap[req.id]
+        if (typeof prevStatus === 'undefined') {
+          const key = `${req.id}:${currentStatus}->${currentStatus}`
+          if (!historyKeys.has(key)) {
+            const entry = buildEntry(req)
+            changes.push(entry)
+            historyKeys.add(key)
+          }
+          return
+        }
+        if (prevStatus !== currentStatus) {
+          const key = `${req.id}:${prevStatus}->${currentStatus}`
+          if (!historyKeys.has(key)) {
+            const entry = buildEntry(req, prevStatus)
+            changes.push(entry)
+            historyKeys.add(key)
+          }
+        }
+      })
+
+      const updatedHistory = changes.length ? [...history, ...changes].slice(-200) : history
+      if (changes.length) {
+        localStorage.setItem('studentNotificationHistory', JSON.stringify(updatedHistory))
+      }
+
+      setRecentNotifications(changes)
+      setNotifications(updatedHistory.slice().sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)))
+    } catch (e) {
+      console.warn('Failed to process student notifications', e)
+      setRecentNotifications([])
+      setNotifications([])
+    }
+  }, [requests])
+
 
   return (
     <>
@@ -588,7 +721,7 @@ export default function HomeStudent() {
           { label: "Total", value: trackingRequests.length },
           { label: "Pending", value: trackingRequests.filter(r => (r.status).toLowerCase() === 'pending').length, colorClass: "text-warning" },
           { label: "Approved", value: trackingRequests.filter(r => r.status?.toLowerCase() === 'approved').length, colorClass: "text-success" },
-          { label: "Ongoing", value: trackingRequests.filter(r => r.status?.toLowerCase() === 'approved' && isOngoing(r)).length, colorClass: "text-success" },
+          { label: "Ongoing", value: trackingRequests.filter(r => r.status?.toLowerCase() === 'ongoing').length, colorClass: "text-success" },
           { label: "Completed", value: trackingRequests.filter(r => ['completed', 'returned'].includes((r.status || '').toLowerCase())).length, colorClass: "text-info" },
           { label: "Accountabilities", value: accountabilities.filter(a => { const s = (a.status || '').toLowerCase(); return s !== 'resolved' && s !== 'completed'; }).length, colorClass: "text-error" },
         ]}
@@ -611,7 +744,7 @@ export default function HomeStudent() {
         </div>
         <div className="stat">
           <div className="stat-title">Ongoing</div>
-          <div className="stat-value text-success">{trackingRequests.filter(r => r.status?.toLowerCase() === 'approved' && isOngoing(r)).length}</div>
+          <div className="stat-value text-success">{trackingRequests.filter(r => r.status?.toLowerCase() === 'ongoing').length}</div>
       
         </div>
         <div className="stat">
@@ -724,7 +857,34 @@ export default function HomeStudent() {
                         </button>
                       ) : null}
 
-                      <div className="card-actions justify-end">
+                      <div className="card-actions justify-end gap-2">
+                        {canGetRequest(r) && (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm w-full sm:w-auto gap-2"
+                            onClick={() => {
+                              setGetModalRequest(r)
+                              setStaffName('')
+                            }}
+                            disabled={busyId === r.requestId}
+                          >
+                            {busyId === r.requestId ? 'Processing...' : 'Get'}
+                          </button>
+                        )}
+                        {canReturnRequest(r) && (
+                          <button
+                            type="button"
+                            className="btn btn-success btn-sm w-full sm:w-auto gap-2"
+                            onClick={() => {
+                              setReturnModalRequest(r)
+                              setReturnStaffName('')
+                            }}
+                            disabled={busyId === r.requestId}
+                          >
+                            <RotateCcw className="w-4 h-4" />
+                            {busyId === r.requestId ? 'Returning...' : 'Return'}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn btn-primary btn-sm w-full sm:w-auto"
@@ -822,10 +982,24 @@ export default function HomeStudent() {
 
                       {/* Action */}
                       <td>
-                        {(r.status || '').toLowerCase() === 'approved' ? (
+                        {canGetRequest(r) ? (
+                          <button
+                            className="btn btn-primary btn-sm gap-2"
+                            onClick={() => {
+                              setGetModalRequest(r)
+                              setStaffName('')
+                            }}
+                            disabled={busyId === r.requestId}
+                          >
+                            {busyId === r.requestId ? 'Processing...' : 'Get'}
+                          </button>
+                        ) : canReturnRequest(r) ? (
                           <button
                             className="btn btn-success btn-sm gap-2"
-                            onClick={() => handleReturn(r.requestId)}
+                            onClick={() => {
+                              setReturnModalRequest(r)
+                              setReturnStaffName('')
+                            }}
                             disabled={busyId === r.requestId}
                           >
                             <RotateCcw className="w-4 h-4" />
@@ -1003,6 +1177,27 @@ export default function HomeStudent() {
                 <div className="bg-base-300 p-3 rounded-lg text-sm">{showModalRequest.adviser || '—'}</div>
               </div>
 
+              <div className="form-control">
+                <label className="label"><span className="label-text text-xs">Approved By</span></label>
+                <div className="bg-base-300 p-3 rounded-lg text-sm">
+                  {(showModalRequest as any).approvedBy || '—'}
+                </div>
+              </div>
+
+              <div className="form-control">
+                <label className="label"><span className="label-text text-xs">Released By Staff</span></label>
+                <div className="bg-base-300 p-3 rounded-lg text-sm">
+                  {(showModalRequest as any).issuedByStaffName || '—'}
+                </div>
+              </div>
+
+              <div className="form-control">
+                <label className="label"><span className="label-text text-xs">Received On Return By</span></label>
+                <div className="bg-base-300 p-3 rounded-lg text-sm">
+                  {(showModalRequest as any).returnedToStaffName || '—'}
+                </div>
+              </div>
+
               <div className="form-control md:col-span-2">
                 <label className="label"><span className="label-text text-xs">Date of Usage</span></label>
                 {showModalRequest.startDate || showModalRequest.endDate ? (
@@ -1053,10 +1248,25 @@ export default function HomeStudent() {
             </div>
             
             <div className="modal-action">
-              {(showModalRequest.status || '').toLowerCase() === 'approved' && (
+              {canGetRequest(showModalRequest) && (
+                <button
+                  className="btn btn-primary gap-2"
+                  onClick={() => {
+                    setGetModalRequest(showModalRequest)
+                    setStaffName('')
+                  }}
+                  disabled={busyId === showModalRequest.id}
+                >
+                  {busyId === showModalRequest.id ? 'Processing...' : 'Get Equipment'}
+                </button>
+              )}
+              {canReturnRequest(showModalRequest) && (
                 <button
                   className="btn btn-success gap-2"
-                  onClick={() => handleReturn(showModalRequest.id)}
+                  onClick={() => {
+                    setReturnModalRequest(showModalRequest)
+                    setReturnStaffName('')
+                  }}
                   disabled={busyId === showModalRequest.id}
                 >
                   <RotateCcw className="w-4 h-4" />
@@ -1086,6 +1296,108 @@ export default function HomeStudent() {
           </div>
           <form method="dialog" className="modal-backdrop">
             <button onClick={() => setShowModalRequest(null)}>close</button>
+          </form>
+        </dialog>
+      )}
+
+      {getModalRequest && (
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-md">
+            <h3 className="font-bold text-lg">Confirm Equipment Claim</h3>
+            <p className="text-sm text-base-content/70 mt-2">
+              Enter the name of the staff who handed the equipment.
+            </p>
+            <div className="form-control mt-4">
+              <label className="label">
+                <span className="label-text">Staff Name</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                placeholder="e.g. Juan Dela Cruz"
+                value={staffName}
+                onChange={(e) => setStaffName(e.target.value)}
+              />
+            </div>
+            <div className="modal-action">
+              <button
+                className="btn btn-primary"
+                onClick={() => handleGet(getModalRequest.requestId || getModalRequest.id, staffName)}
+                disabled={busyId === (getModalRequest.requestId || getModalRequest.id)}
+              >
+                {busyId === (getModalRequest.requestId || getModalRequest.id) ? 'Confirming...' : 'Confirm Get'}
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setGetModalRequest(null)
+                  setStaffName('')
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button
+              onClick={() => {
+                setGetModalRequest(null)
+                setStaffName('')
+              }}
+            >
+              close
+            </button>
+          </form>
+        </dialog>
+      )}
+
+      {returnModalRequest && (
+        <dialog className="modal modal-open sm:modal-middle">
+          <div className="modal-box w-11/12 max-w-md">
+            <h3 className="font-bold text-lg">Confirm Equipment Return</h3>
+            <p className="text-sm text-base-content/70 mt-2">
+              Enter the name of the staff you handed the equipment to.
+            </p>
+            <div className="form-control mt-4">
+              <label className="label">
+                <span className="label-text">Staff Name</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                placeholder="e.g. Juan Dela Cruz"
+                value={returnStaffName}
+                onChange={(e) => setReturnStaffName(e.target.value)}
+              />
+            </div>
+            <div className="modal-action">
+              <button
+                className="btn btn-success"
+                onClick={() => handleReturn(returnModalRequest.requestId || returnModalRequest.id, returnStaffName)}
+                disabled={busyId === (returnModalRequest.requestId || returnModalRequest.id)}
+              >
+                {busyId === (returnModalRequest.requestId || returnModalRequest.id) ? 'Confirming...' : 'Confirm Return'}
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setReturnModalRequest(null)
+                  setReturnStaffName('')
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button
+              onClick={() => {
+                setReturnModalRequest(null)
+                setReturnStaffName('')
+              }}
+            >
+              close
+            </button>
           </form>
         </dialog>
       )}

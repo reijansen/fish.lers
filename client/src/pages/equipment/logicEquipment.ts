@@ -236,7 +236,10 @@ export function useFetchAvailableItems(
 
     const fetchSummary = async () => {
       try {
-        const reservedTotals = await requestsApi.getOngoingReservationSummary();
+        const hasRange = !!_startDate && !!_endDate;
+        const reservedTotals = hasRange
+          ? await requestsApi.getOngoingReservationSummaryForRange(_startDate!, _endDate!)
+          : await requestsApi.getOngoingReservationSummary();
         if (!cancelled) {
           setActiveReservations(reservedTotals || {});
         }

@@ -91,6 +91,36 @@ export class RequestController {
   }
 
   /**
+   * GET /api/requests/pending/summary
+   * Returns reserved quantities grouped by equipmentID
+   * from approved + ongoing requests.
+   */
+  static async getPendingSummary(req: Request, res: Response): Promise<void> {
+    try {
+      const summary = await RequestService.getPendingReservationSummary();
+      res.status(200).json({ success: true, data: summary });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  /**
+   * GET /api/requests/availability/summary?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+   * Returns reserved quantities grouped by equipmentID for approved/ongoing
+   * requests that overlap the selected date range.
+   */
+  static async getAvailabilitySummary(req: Request, res: Response): Promise<void> {
+    try {
+      const startDate = String(req.query.startDate || "");
+      const endDate = String(req.query.endDate || "");
+      const summary = await RequestService.getReservationSummaryForRange(startDate, endDate);
+      res.status(200).json({ success: true, data: summary });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  /**
    * GET /api/requests/:id
    * Get a single request by ID.
    */

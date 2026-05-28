@@ -5,7 +5,11 @@ import { Bell, Eye, X, ChevronDown, ArrowUp } from "lucide-react";
 import { logicEquipment } from "../equipment/logicEquipment";
 import LoadingOverlay from "../../components/LoadingOverlay";
 import MobileStatsPager from "../../components/MobileStatsPager";
-import { overrideApproveRequest, overrideRejectRequest } from "../../api/requests.api";
+import {
+  getOngoingReservationSummaryForRange,
+  overrideApproveRequest,
+  overrideRejectRequest,
+} from "../../api/requests.api";
 import { useAuth } from "../../hooks/useAuth";
 import AnnouncementBanner from "../../components/AnnouncementBanner";
 import { useAnnouncements } from "../../hooks/useAnnouncements";
@@ -61,7 +65,7 @@ const AdminDashboard: React.FC = () => {
   const MOBILE_CARD_BATCH = 5;
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'all'|'pending'|'approved'|'declined'|'cancelled'|'returned'|'cleared'>('all');
+  const [tab, setTab] = useState<'all'|'pending'|'ongoing'|'approved'|'declined'|'cancelled'|'returned'|'cleared'>('all');
   const { equipmentList, isLoading: isEquipmentLoading } = logicEquipment();
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineId, setDeclineId] = useState<string | null>(null);
@@ -93,6 +97,10 @@ const AdminDashboard: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const mobileListRef = React.useRef<HTMLDivElement>(null);
   const [isMobileListExpanded, setIsMobileListExpanded] = useState(false);
+  const [availabilityBlockOpen, setAvailabilityBlockOpen] = useState(false);
+  const [availabilityBlockItems, setAvailabilityBlockItems] = useState<
+    Array<{ equipmentID: string; name: string }>
+  >([]);
 
   const closeRequestModal = useCallback(() => {
     if (isFinalizingReturn) return;
@@ -106,18 +114,42 @@ const AdminDashboard: React.FC = () => {
   const equipmentLookup = React.useMemo(() => {
     const map: Record<
       string,
-      { name?: string; isDisposable?: boolean }
+      { name?: string; isDisposable?: boolean; totalInventory?: number }
     > = {};
     equipmentList.forEach((item) => {
       if (item.equipmentID) {
         map[item.equipmentID] = {
           name: item.name,
           isDisposable: item.isDisposable,
+          totalInventory: item.totalInventory || 0,
         };
       }
     });
     return map;
   }, [equipmentList]);
+
+  const checkRequestAvailabilityForApproval = useCallback(async (request: Request) => {
+    if (!request?.startDate || !request?.endDate) return { blocked: false, blockedItems: [] as Array<{ equipmentID: string; name: string }> };
+
+    const reserved = await getOngoingReservationSummaryForRange(request.startDate, request.endDate);
+    const blockedItems: Array<{ equipmentID: string; name: string }> = [];
+
+    for (const item of request.items || []) {
+      const equipmentID = item?.equipmentID || "";
+      if (!equipmentID) continue;
+      const totalInventory = equipmentLookup[equipmentID]?.totalInventory || 0;
+      const reservedQty = reserved[equipmentID] || 0;
+      const availableNow = Math.max(0, totalInventory - reservedQty);
+      if (availableNow <= 0) {
+        blockedItems.push({
+          equipmentID,
+          name: equipmentLookup[equipmentID]?.name || equipmentID,
+        });
+      }
+    }
+
+    return { blocked: blockedItems.length > 0, blockedItems };
+  }, [equipmentLookup]);
 
   const groupedReturnAssessments = React.useMemo(() => {
     if (!viewRequest?.returnAssessment) return null;
@@ -155,7 +187,7 @@ const AdminDashboard: React.FC = () => {
   const requiresReturnAssessment =
     !!viewRequest && normalizedViewStatus === "returned" && hasDurableItems;
   const showApprovalActions =
-    !!viewRequest && !["cancelled", "approved", "returned", "cleared"].includes(normalizedViewStatus);
+    !!viewRequest && !["ongoing", "cancelled", "approved", "declined", "rejected", "returned", "cleared"].includes(normalizedViewStatus);
   const canOverrideToApprove =
     !!viewRequest && isSuperAdmin && ["declined", "rejected"].includes(normalizedViewStatus);
   const canOverrideToReject =
@@ -602,6 +634,9 @@ const AdminDashboard: React.FC = () => {
   const pendingCount = requests.filter(
     (r) => (r.status || "").toLowerCase() === "pending"
   ).length;
+  const ongoingCount = requests.filter(
+    (r) => (r.status || "").toLowerCase() === "ongoing"
+  ).length;
   const approvedCount = requests.filter(
     (r) => (r.status || "").toLowerCase() === "approved"
   ).length;
@@ -846,7 +881,8 @@ const AdminDashboard: React.FC = () => {
   const visibleRequests = requests.filter((req) => {
     if (tab === 'all') return true;
     const s = (req.status || '').toString().toLowerCase();
-    if (tab === 'pending') return s === 'pending' || s === 'ongoing' || s === '';
+    if (tab === 'pending') return s === 'pending' || s === '';
+    if (tab === 'ongoing') return s === 'ongoing';
     if (tab === 'approved') return s === 'approved' || s === 'approved';
     if (tab === 'declined') return s === 'declined' || s === 'rejected';
     if (tab === 'cancelled') return s === 'cancelled';
@@ -1016,6 +1052,7 @@ const AdminDashboard: React.FC = () => {
           { label: "Total", value: requests.length },
           { label: "Pending", value: pendingCount, colorClass: "text-warning" },
           { label: "Approved", value: approvedCount, colorClass: "text-success" },
+          { label: "Ongoing", value: ongoingCount, colorClass: "text-primary" },
           { label: "Returned", value: returnedCount, colorClass: "text-info" },
           { label: "Cleared", value: clearedCount, colorClass: "text-secondary" },
           { label: "Declined", value: declinedCount, colorClass: "text-error" },
@@ -1035,6 +1072,10 @@ const AdminDashboard: React.FC = () => {
         <div className="stat min-w-0 px-3 sm:px-4">
           <div className="stat-title text-xs truncate">Approved</div>
           <div className="stat-value text-4xl text-success">{approvedCount}</div>
+        </div>
+        <div className="stat min-w-0 px-3 sm:px-4">
+          <div className="stat-title text-xs truncate">Ongoing</div>
+          <div className="stat-value text-4xl text-primary">{ongoingCount}</div>
         </div>
         <div className="stat min-w-0 px-3 sm:px-4">
           <div className="stat-title text-xs truncate">Returned</div>
@@ -1065,11 +1106,12 @@ const AdminDashboard: React.FC = () => {
                 <select
                   className="select select-bordered w-full min-h-11"
                   value={tab}
-                  onChange={(e) => setTab(e.target.value as 'all'|'pending'|'approved'|'declined'|'cancelled'|'returned'|'cleared')}
+                  onChange={(e) => setTab(e.target.value as 'all'|'pending'|'ongoing'|'approved'|'declined'|'cancelled'|'returned'|'cleared')}
                 >
                   <option value="all">All</option>
                   <option value="pending">Pending</option>
                   <option value="approved">Approved</option>
+                  <option value="ongoing">Ongoing</option>
                   <option value="declined">Declined</option>
                   <option value="cancelled">Cancelled</option>
                   <option value="returned">Returned</option>
@@ -1082,6 +1124,7 @@ const AdminDashboard: React.FC = () => {
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'all' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('all')}>All</a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'pending' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('pending')}>Pending</a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'approved' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('approved')}>Approved</a>
+              <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'ongoing' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('ongoing')}>Ongoing</a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'declined' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('declined')}>Declined</a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'cancelled' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('cancelled')}>Cancelled</a>
               <a role="tab" className={`tab transition-all duration-300 ease-in-out ${tab === 'returned' ? 'tab-active bg-primary text-white font-semibold' : ''}`} onClick={() => setTab('returned')}>Returned</a>
@@ -1327,12 +1370,30 @@ const AdminDashboard: React.FC = () => {
               </div>
 
               <div>
+                <div className="text-xs text-base-content/60">Approved By</div>
+                <div className="font-medium break-all">
+                  {(viewRequest as any).approvedBy
+                    ? (userNameCacheRef.current[(viewRequest as any).approvedBy] || (viewRequest as any).approvedBy)
+                    : "—"}
+                </div>
+              </div>
+
+              <div>
                 <div className="text-xs text-base-content/60">Start</div>
                     <div className="font-medium">{formatUsageDate(viewRequest.startDate)} {formatTime(viewRequest.start)}</div>
               </div>
               <div>
                 <div className="text-xs text-base-content/60">End</div>
                     <div className="font-medium">{formatUsageDate(viewRequest.endDate)} {formatTime(viewRequest.end)}</div>
+              </div>
+
+              <div>
+                <div className="text-xs text-base-content/60">Released By Staff</div>
+                <div className="font-medium">{(viewRequest as any).issuedByStaffName || "—"}</div>
+              </div>
+              <div>
+                <div className="text-xs text-base-content/60">Received On Return By</div>
+                <div className="font-medium">{(viewRequest as any).returnedToStaffName || "—"}</div>
               </div>
 
               <div className="md:col-span-2 space-y-2">
@@ -1513,35 +1574,31 @@ const AdminDashboard: React.FC = () => {
                 <div className="whitespace-pre-wrap font-medium">{viewRequest.declinedRemarks || (viewRequest as any).remarks || '—'}</div>
               </div>
               {(viewRequest.overriddenBy || viewRequest.overriddenAt || viewRequest.overrideReason) && (
-                <div className="md:col-span-2 rounded-box border border-secondary/30 bg-secondary/5 p-3 space-y-2">
+                <div className="md:col-span-2 rounded-box border border-base-300 bg-base-200/40 p-4 space-y-3">
                   <div className="text-xs uppercase tracking-wide text-base-content/60">Override Audit</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     <div>
                       <div className="text-xs text-base-content/60">Overridden By</div>
-                      <div className="font-medium font-mono">
-                        {viewRequest.overriddenBy || "—"}
+                      <div className="font-medium break-all">
+                        {viewRequest.overriddenBy ? (userNameCacheRef.current[viewRequest.overriddenBy] || viewRequest.overriddenBy) : "-"}
                       </div>
                     </div>
                     <div>
                       <div className="text-xs text-base-content/60">Overridden At</div>
                       <div className="font-medium">
-                        {formatDateTime(viewRequest.overriddenAt) || "—"}
+                        {formatDateTime(viewRequest.overriddenAt) || "-"}
                       </div>
                     </div>
                   </div>
                   {(viewRequest.overrideFromStatus || viewRequest.status) && (
-                    <div className="text-sm">
-                      <span className="text-xs text-base-content/60">Decision Transition: </span>
-                      <span className="font-medium">
+                    <div className="text-sm rounded-lg bg-base-100 border border-base-300 px-3 py-2"><span className="text-xs text-base-content/60">Decision Transition: </span><span className="font-medium">
                         {formatStatusLabel(viewRequest.overrideFromStatus)} → {formatStatusLabel(viewRequest.status)}
                       </span>
                     </div>
                   )}
                   <div>
                     <div className="text-xs text-base-content/60">Override Reason</div>
-                    <div className="whitespace-pre-wrap font-medium">
-                      {viewRequest.overrideReason || "—"}
-                    </div>
+                    <div className="whitespace-pre-wrap font-medium rounded-lg bg-base-100 border border-base-300 px-3 py-2">{viewRequest.overrideReason || "No reason provided."}</div>
                   </div>
                 </div>
               )}
@@ -1579,12 +1636,18 @@ const AdminDashboard: React.FC = () => {
                     className="btn btn-success"
                     onClick={async () => {
                       try {
+                        const check = await checkRequestAvailabilityForApproval(viewRequest);
+                        if (check.blocked) {
+                          setAvailabilityBlockItems(check.blockedItems);
+                          setAvailabilityBlockOpen(true);
+                          return;
+                        }
                         await updateStatus(viewRequest.id, 'approved');
-                      } catch (e) {
-                        console.error(e);
-                      } finally {
                         setViewOpen(false);
                         setViewRequest(null);
+                      } catch (e) {
+                        console.error(e);
+                        setAlertMessage("Failed to approve request. Please try again.");
                       }
                     }}
                   >
@@ -1604,7 +1667,7 @@ const AdminDashboard: React.FC = () => {
                   </button>
                 </div>
               ) : canOverrideToApprove || canOverrideToReject ? (
-                <div className="rounded-box border border-secondary/30 bg-secondary/5 p-3 space-y-2">
+                <div className="rounded-box border border-base-300 bg-base-200/40 p-4 space-y-3">
                   <p className="text-sm text-base-content/80">
                     Super admin override is available for this decision.
                   </p>
@@ -1806,6 +1869,48 @@ const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {availabilityBlockOpen && (
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-xl">
+            <h3 className="font-bold text-lg">Cannot Approve Request</h3>
+            <p className="py-2 text-sm text-base-content/80">
+              One or more requested equipment items currently have zero available inventory.
+            </p>
+            <div className="bg-base-200 rounded-box p-3 max-h-64 overflow-y-auto">
+              <ul className="space-y-2">
+                {availabilityBlockItems.map((entry) => (
+                  <li key={entry.equipmentID} className="text-sm">
+                    <span className="font-semibold">{entry.name}</span>
+                    <span className="text-base-content/60"> ({entry.equipmentID})</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="modal-action">
+              <button
+                className="btn"
+                onClick={() => {
+                  setAvailabilityBlockOpen(false);
+                  setAvailabilityBlockItems([]);
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+          <form method="dialog" className="modal-backdrop">
+            <button
+              onClick={() => {
+                setAvailabilityBlockOpen(false);
+                setAvailabilityBlockItems([]);
+              }}
+            >
+              close
+            </button>
+          </form>
+        </dialog>
+      )}
+
     </div>
     
     {/* Scroll to Top Button (Mobile Only) - Outside main container for proper positioning */}
@@ -1824,3 +1929,5 @@ const AdminDashboard: React.FC = () => {
 };
 
 export default AdminDashboard;
+
+

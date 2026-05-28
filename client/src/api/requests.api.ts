@@ -109,6 +109,63 @@ export async function getOngoingReservationSummary(): Promise<Record<string, num
 }
 
 /**
+ * Get aggregated reserved quantities from approved + ongoing requests.
+ * GET /api/requests/pending/summary
+ */
+export async function getPendingReservationSummary(): Promise<Record<string, number>> {
+  const data = await apiGet<Record<string, number>>("/api/requests/pending/summary");
+  return data;
+}
+
+/**
+ * Get aggregated reserved quantities for a selected date range.
+ * Includes approved + ongoing requests that overlap the range.
+ * GET /api/requests/availability/summary?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+ */
+export async function getReservationSummaryForRange(
+  startDate: string,
+  endDate: string
+): Promise<Record<string, number>> {
+  const params = new URLSearchParams({ startDate, endDate });
+  const data = await apiGet<Record<string, number>>(
+    `/api/requests/availability/summary?${params.toString()}`
+  );
+  return data;
+}
+
+function rangesOverlap(
+  startA: string,
+  endA: string,
+  startB: string,
+  endB: string
+): boolean {
+  if (!startA || !endA || !startB || !endB) return false;
+  return startA <= endB && startB <= endA;
+}
+
+/**
+ * Get aggregated reserved quantities for a selected date range,
+ * considering only ongoing requests.
+ */
+export async function getOngoingReservationSummaryForRange(
+  startDate: string,
+  endDate: string
+): Promise<Record<string, number>> {
+  const ongoingRequests = await listRequests("ongoing");
+  const summary: Record<string, number> = {};
+
+  for (const req of ongoingRequests || []) {
+    if (!rangesOverlap(startDate, endDate, req.startDate, req.endDate)) continue;
+    for (const item of req.items || []) {
+      if (!item?.equipmentID) continue;
+      summary[item.equipmentID] = (summary[item.equipmentID] || 0) + (item.qty || 0);
+    }
+  }
+
+  return summary;
+}
+
+/**
  * Get a single request by ID.
  * GET /api/requests/:id
  */
@@ -237,6 +294,9 @@ export default {
   getPendingRequests,
   getRequestsByUser,
   getOngoingReservationSummary,
+  getPendingReservationSummary,
+  getReservationSummaryForRange,
+  getOngoingReservationSummaryForRange,
   getRequest,
   updateRequest,
   approveRequest,

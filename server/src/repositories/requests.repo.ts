@@ -14,6 +14,70 @@ type ListOptions = {
  * Purpose: Data access layer for request data.
  */
 export class RequestRepository {
+  static async getPendingReservationSummary(): Promise<Record<string, number>> {
+    const db = getFirestore();
+    const snapshot = await db
+      .collection(REQUESTS_COLLECTION)
+      .where("status", "in", ["approved", "ongoing"])
+      .get();
+
+    const totals: Record<string, number> = {};
+    snapshot.forEach((doc) => {
+      const data = doc.data() as any;
+      const items = Array.isArray(data.items) ? data.items : [];
+      items.forEach((item: any) => {
+        const equipmentID = item?.equipmentID;
+        const qty = Number(item?.qty) || 0;
+        if (!equipmentID || qty <= 0) return;
+        totals[equipmentID] = (totals[equipmentID] || 0) + qty;
+      });
+    });
+
+    return totals;
+  }
+
+  static async getReservationSummaryForRange(
+    startDate: string,
+    endDate: string
+  ): Promise<Record<string, number>> {
+    const db = getFirestore();
+    const snapshot = await db
+      .collection(REQUESTS_COLLECTION)
+      .where("status", "in", ["approved", "ongoing"])
+      .get();
+
+    const totals: Record<string, number> = {};
+    const selectedStart = new Date(`${startDate}T00:00:00`).getTime();
+    const selectedEnd = new Date(`${endDate}T23:59:59`).getTime();
+    if (!Number.isFinite(selectedStart) || !Number.isFinite(selectedEnd)) {
+      return totals;
+    }
+
+    snapshot.forEach((doc) => {
+      const data = doc.data() as any;
+      const reqStartRaw = data?.startDate;
+      const reqEndRaw = data?.endDate;
+      if (!reqStartRaw || !reqEndRaw) return;
+
+      const reqStart = new Date(`${reqStartRaw}T00:00:00`).getTime();
+      const reqEnd = new Date(`${reqEndRaw}T23:59:59`).getTime();
+      if (!Number.isFinite(reqStart) || !Number.isFinite(reqEnd)) return;
+
+      const overlaps = reqStart <= selectedEnd && reqEnd >= selectedStart;
+      if (!overlaps) return;
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      items.forEach((item: any) => {
+        const equipmentID = item?.equipmentID;
+        const qty = Number(item?.qty) || 0;
+        if (!equipmentID || qty <= 0) return;
+        totals[equipmentID] = (totals[equipmentID] || 0) + qty;
+      });
+    });
+
+    return totals;
+  }
+
   static async getOngoingReservationSummary(): Promise<Record<string, number>> {
     const db = getFirestore();
     const snapshot = await db

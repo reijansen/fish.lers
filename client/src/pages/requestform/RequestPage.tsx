@@ -170,15 +170,6 @@ export const RequestForm: React.FC = () => {
     const itemsArray = Object.entries(requestedItems)
       .filter(([_, qty]) => qty > 0)
       .map(([equipmentID, qty]) => ({ equipmentID, qty }));
-    for (const { equipmentID, qty } of itemsArray) {
-      const item = availableEquipment.find((e: AvailableEquipmentItem) => e.equipmentID === equipmentID);
-      if (!item) continue;
-      if (qty > item.available) {
-        setErrorMessage(`"${item.name}" exceeds available stock (${item.available}).`);
-        return;
-      }
-    }
-
     if (itemsArray.length === 0) {
       setErrorMessage("Please select at least one item.");
       return;
@@ -228,7 +219,6 @@ export const RequestForm: React.FC = () => {
 
   const normalizedFilter = filterText.trim().toLowerCase();
   const filteredEquipment = availableEquipment
-    .filter((item: AvailableEquipmentItem) => item.available > 0)
     .filter((item: AvailableEquipmentItem) => {
       if (!normalizedFilter) return true;
       const nameMatch = (item.name || "").toLowerCase().includes(normalizedFilter);
@@ -380,7 +370,9 @@ export const RequestForm: React.FC = () => {
                   </div>
                 ) : (
                   <div className="divide-y divide-base-200">
-                    {filteredEquipment.map((item: AvailableEquipmentItem) => (
+                    {filteredEquipment.map((item: AvailableEquipmentItem) => {
+                      const maxRequestQty = Math.max(item.totalInventory || 0, 1);
+                      return (
                       <div
                         key={item.equipmentID}
                         className={`grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_auto] gap-3 p-3 transition-colors cursor-pointer ${
@@ -408,6 +400,11 @@ export const RequestForm: React.FC = () => {
                             <span className="badge badge-ghost badge-sm whitespace-nowrap">
                               Available: {item.available}
                             </span>
+                            {item.available <= 0 && (
+                              <span className="badge badge-warning badge-sm whitespace-nowrap">
+                                Currently unavailable (still requestable)
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -433,13 +430,13 @@ export const RequestForm: React.FC = () => {
                           <input
                             type="number"
                             min={0}
-                            max={item.available}
+                            max={maxRequestQty}
                             value={requestedItems[item.equipmentID!] || 0}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               setRequestedItems((prev) => ({
                                 ...prev,
-                                [item.equipmentID!]: Math.max(0, Math.min(Number(e.target.value), item.available)),
+                                [item.equipmentID!]: Math.max(0, Math.min(Number(e.target.value), maxRequestQty)),
                               }))
                             }
                             className="input input-sm input-bordered min-h-11 join-item w-16 text-center"
@@ -451,16 +448,16 @@ export const RequestForm: React.FC = () => {
                               e.stopPropagation();
                               setRequestedItems((prev) => ({
                                 ...prev,
-                                [item.equipmentID!]: (prev[item.equipmentID!] || 0) + 1,
+                                [item.equipmentID!]: Math.min((prev[item.equipmentID!] || 0) + 1, maxRequestQty),
                               }));
                             }}
-                            disabled={(requestedItems[item.equipmentID!] || 0) >= item.available}
+                            disabled={(requestedItems[item.equipmentID!] || 0) >= maxRequestQty}
                           >
                             <Plus className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 )}
               </div>
@@ -706,7 +703,7 @@ export const RequestForm: React.FC = () => {
                       </div>
                       <div>
                         <span className="badge badge-outline badge-sm">
-                          Pending: {previewDetails.reserved ?? 0}
+                          Ongoing: {previewDetails.reserved ?? 0}
                         </span>
                       </div>
                     </div>

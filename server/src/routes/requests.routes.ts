@@ -18,6 +18,8 @@ router.get("/", requireAuth, requireAdmin, RequestController.listRequests);
 router.get("/pending", requireAuth, requireAdmin, RequestController.getPending);
 router.get("/user/:uid", requireAuth, RequestController.getByUser);
 router.get("/ongoing/summary", requireAuth, RequestController.getOngoingSummary);
+router.get("/pending/summary", requireAuth, RequestController.getPendingSummary);
+router.get("/availability/summary", requireAuth, RequestController.getAvailabilitySummary);
 router.get("/:id", requireAuth, RequestController.getRequest);
 
 // Batch endpoints
