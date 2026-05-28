@@ -28,6 +28,15 @@ export default function StudentSupportChat() {
   } = useChat();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isOwnMessage = (msg: { senderUID?: string; senderUid?: string; senderId?: string }) => {
+    if (!userUID) return false;
+    const current = userUID.trim().toLowerCase();
+    const sender = (msg.senderUID ?? msg.senderUid ?? msg.senderId ?? "")
+      .toString()
+      .trim()
+      .toLowerCase();
+    return sender.length > 0 && sender === current;
+  };
 
   // ========================================================================
   // LIFECYCLE: Initialize conversation on mount
@@ -134,11 +143,11 @@ export default function StudentSupportChat() {
           messages.map((msg) => (
             <div
               key={msg.messageID}
-              className={`chat ${msg.senderUID === userUID ? 'chat-end' : 'chat-start'}`}
+              className={`chat ${isOwnMessage(msg as any) ? 'chat-end' : 'chat-start'}`}
             >
               <div className="chat-bubble max-w-xs lg:max-w-md">
                 <p className="text-xs font-semibold text-base-content/70 mb-1">
-                  {msg.senderUID === userUID ? 'You' : msg.senderUID} ({msg.senderRole})
+                  {isOwnMessage(msg as any) ? 'You' : msg.senderUID} ({msg.senderRole})
                 </p>
                 <p>{msg.content}</p>
               </div>

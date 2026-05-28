@@ -64,6 +64,19 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const messagesAreaRef = useRef<HTMLDivElement>(null);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+  const isOwnMessage = useCallback(
+    (msg: ChatMessage) => {
+      if (!userUID) return false;
+      const current = userUID.trim().toLowerCase();
+      const sender =
+        ((msg as any).senderUID ?? (msg as any).senderUid ?? (msg as any).senderId ?? "")
+          .toString()
+          .trim()
+          .toLowerCase();
+      return sender.length > 0 && sender === current;
+    },
+    [userUID]
+  );
 
   const shouldAutoScrollRef = useRef(true);
   const pendingPrependAdjustRef = useRef(false);
@@ -328,7 +341,7 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
                   <MessageBubble
                     key={msg.messageID}
                     message={msg}
-                    isOwn={msg.senderUID === userUID}
+                    isOwn={isOwnMessage(msg)}
                     userRole={userRole}
                     getPersonLabel={getPersonLabel}
                   />
