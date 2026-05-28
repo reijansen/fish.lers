@@ -484,7 +484,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       const data = await response.json();
       console.log('[Chat] loadConversations response:', data);
-      setConversations(data.conversations || []);
+      const nextConversations = Array.isArray(data.conversations) ? data.conversations : [];
+      setConversations(nextConversations);
+      const currentId = currentConversationIdRef.current;
+      if (currentId) {
+        const refreshedCurrent = nextConversations.find((conv: Conversation) => conv.conversationID === currentId) || null;
+        if (refreshedCurrent) {
+          setCurrentConversation(refreshedCurrent);
+        }
+      }
       if (data.unreadCounts && typeof data.unreadCounts === 'object') {
         setUnreadCounts(data.unreadCounts);
       }

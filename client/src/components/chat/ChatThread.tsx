@@ -8,6 +8,7 @@ import React, { useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 
 import { ChatMessage, ChatPerson, Conversation } from '../../context/ChatContext';
 import { MessageBubble } from './MessageBubble';
 import { ChevronLeft, Info } from "lucide-react";
+import { getSupportConversationLabel } from "./chatTitleUtils";
 
 interface ChatThreadProps {
   messages: ChatMessage[];
@@ -179,11 +180,11 @@ export const ChatThread: React.FC<ChatThreadProps> = ({
     if (currentConversation.type === "staff") return "Staff Chat (Admins)";
 
     if (currentConversation.type === "support") {
-      return `Support Chat${
-        currentConversation.studentUID
-          ? ` - ${getPersonLabel ? getPersonLabel(currentConversation.studentUID) : currentConversation.studentUID}`
-          : ""
-      }`;
+      return getSupportConversationLabel(
+        currentConversation,
+        userUID,
+        peopleByUID || {}
+      );
     }
 
     if (currentConversation.type === "escalation") {

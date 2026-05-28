@@ -18,7 +18,8 @@ export type ConversationStatus = "active" | "closed";
 /**
  * A conversation (support, escalation, or staff).
  * 
- * Support: `support:<studentUID>` - One per student, permanent until deleted
+ * Support: `support:<studentUID>:<adminUID>` - One per student-admin pair
+ * Legacy support threads may still exist as `support:<studentUID>`
  * Escalation: `escalation:<adminUID>:<escalationID>` - Multiple per admin
  * Staff: `staff:admins` - Single group chat for admins + superAdmins
  */

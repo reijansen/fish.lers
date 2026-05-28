@@ -18,9 +18,10 @@ interface NewChatModalProps {
   open: boolean;
   onClose: () => void;
   onStart: (person: ChatPerson) => Promise<void>;
+  currentUserRole: "student" | "admin" | "superAdmin" | null;
 }
 
-export const NewChatModal: React.FC<NewChatModalProps> = ({ open, onClose, onStart }) => {
+export const NewChatModal: React.FC<NewChatModalProps> = ({ open, onClose, onStart, currentUserRole }) => {
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState<ChatPerson[]>([]);
   const [selectedUid, setSelectedUid] = useState<string>("");
@@ -51,7 +52,10 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({ open, onClose, onSta
         const deduped = Array.from(
           new Map<string, ChatPerson>(peopleArray.map((p) => [p.uid, p])).values()
         );
-        setPeople(deduped);
+        const visiblePeople = currentUserRole === "admin"
+          ? deduped.filter((p) => p.role === "student")
+          : deduped;
+        setPeople(visiblePeople);
       } catch (e: any) {
         setError(e?.message || "Failed to load people");
       } finally {
@@ -62,7 +66,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({ open, onClose, onSta
     // slight debounce
     const t = setTimeout(run, 200);
     return () => clearTimeout(t);
-  }, [open, query]);
+  }, [open, query, currentUserRole]);
 
   useEffect(() => {
     if (!open) {

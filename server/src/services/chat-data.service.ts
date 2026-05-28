@@ -44,13 +44,12 @@ export class ChatDataService {
 
   /**
    * Generate deterministic conversation ID for student support.
-   * Format: `support:<studentUID>`
+   * Format: `support:<studentUID>:<adminUID>`
    * 
-   * Deterministic: Always the same for a given student.
-   * One support conversation per student, used across all requests.
+   * Deterministic: Always the same for a given student-admin pair.
    */
-  static generateSupportConversationID(studentUID: string): string {
-    return `support:${studentUID}`;
+  static generateSupportConversationID(studentUID: string, adminUID?: string): string {
+    return adminUID ? `support:${studentUID}:${adminUID}` : `support:${studentUID}`;
   }
 
   /**
@@ -88,8 +87,16 @@ export class ChatDataService {
     staffKey?: "admins";
   } | null {
     if (conversationID.startsWith("support:")) {
-      const studentUID = conversationID.slice("support:".length);
-      return { type: "support", studentUID };
+      const parts = conversationID.split(":");
+      if (parts.length === 2) {
+        const studentUID = parts[1];
+        return { type: "support", studentUID };
+      }
+      if (parts.length === 3) {
+        const studentUID = parts[1];
+        const adminUID = parts[2];
+        return { type: "support", studentUID, adminUID };
+      }
     }
 
     if (conversationID.startsWith("escalation:")) {
@@ -125,31 +132,32 @@ export class ChatDataService {
     user: UserRole,
     conversation: Conversation
   ): boolean {
-    // SuperAdmin can access everything
-    if (user.isSuperAdmin) {
-      return true;
-    }
-
     // Support conversation: student owns it, or any admin
     if (conversation.type === "support") {
       if (user.uid === conversation.studentUID) {
         return true;
       }
-      if (user.isAdmin || user.isSuperAdmin) {
-        return true;
+      if (user.isAdmin && !user.isSuperAdmin) {
+        if (!conversation.adminUID) return true;
+        return conversation.adminUID === user.uid;
       }
       return false;
     }
 
     // Escalation conversation: admin who created it, or any superAdmin
     if (conversation.type === "escalation") {
-      if (user.uid === conversation.adminUID) {
-        return true;
-      }
       if (user.isSuperAdmin) {
         return true;
       }
+      if (user.uid === conversation.adminUID) {
+        return true;
+      }
       return false;
+    }
+
+    // Staff conversation is shared by admins and superAdmins.
+    if (conversation.type === "staff") {
+      return user.isAdmin || user.isSuperAdmin;
     }
 
     return false;
@@ -264,9 +272,10 @@ export class ChatDataService {
    * Creates if it doesn't exist; idempotent.
    */
   static async getOrCreateSupportConversation(
-    studentUID: string
+    studentUID: string,
+    adminUID?: string
   ): Promise<Conversation> {
-    const conversationID = this.generateSupportConversationID(studentUID);
+    const conversationID = this.generateSupportConversationID(studentUID, adminUID);
     console.log(`[ChatDataService] Getting or creating support conversation for ${studentUID} (ID: ${conversationID})`);
     let conversation = await ChatRepository.getConversation(conversationID);
 
@@ -279,7 +288,8 @@ export class ChatDataService {
         type: "support",
         status: "active",
         studentUID,
-        participants: [studentUID],
+        adminUID,
+        participants: adminUID ? [studentUID, adminUID] : [studentUID],
         messageCount: 0,
         lastMessageAt: now,
         createdAt: now,

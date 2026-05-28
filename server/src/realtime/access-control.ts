@@ -51,9 +51,7 @@ export async function canUserAccessConversation(
       return false;
     }
 
-    // Admin/SuperAdmin: privacy-by-default, but allow a single admin to "claim" a support thread.
-    // - If adminUID is unset: allow admin/superAdmin to join (claim happens on join)
-    // - If adminUID is set: only that admin (or explicit participant) can access
+    // Admins may claim or access support threads; superAdmins are intentionally excluded.
     if (user.admin) {
       const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
       if (!conversation.adminUID) return true;

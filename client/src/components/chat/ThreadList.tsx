@@ -8,6 +8,7 @@ import React, { useState, useMemo } from 'react';
 import { Conversation } from '../../context/ChatContext';
 import { Archive, Inbox, MoreVertical, Pin, Plus, Trash2 } from "lucide-react";
 import { useChat } from "../../context/ChatContext";
+import { getSupportConversationLabel } from "./chatTitleUtils";
 
 interface ThreadListProps {
   conversations: Conversation[];
@@ -163,6 +164,14 @@ export const ThreadList: React.FC<ThreadListProps> = ({
     return conv.adminUID ? getPersonLabel(conv.adminUID) : "Escalation";
   };
 
+  const getConversationLabel = (conv: Conversation): string => {
+    if (conv.type === "staff") return "Staff Chat (Admins)";
+    if (conv.type === "support") return getSupportConversationLabel(conv, userUID, chat.peopleByUID);
+    if (conv.type === "escalation" && conv.adminUID) return getEscalationLabel(conv);
+    if (conv.type === "escalation") return `Escalation${conv.escalationReason ? ': ' + conv.escalationReason : ''}`;
+    return "Conversation";
+  };
+
   return (
     <div className="chat-flex-container bg-base-100 h-full flex flex-col overflow-hidden min-h-0">
       {/* Header */}
@@ -174,7 +183,7 @@ export const ThreadList: React.FC<ThreadListProps> = ({
               <span className="badge badge-primary badge-sm">{unreadThreadCountLabel}</span>
             )}
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               className="btn btn-xs sm:btn-sm btn-ghost btn-square"
@@ -277,16 +286,10 @@ export const ThreadList: React.FC<ThreadListProps> = ({
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
                       <h3 className={`truncate text-sm sm:text-base ${isUnread ? "font-bold" : "font-semibold"}`}>
-                        {conv.type === "staff"
-                          ? "Staff Chat (Admins)"
-                          : conv.type === 'support' && conv.studentUID
-                          ? getPersonLabel(conv.studentUID)
-                          : conv.type === 'escalation' && conv.adminUID
-                          ? getEscalationLabel(conv)
-                          : `Escalation${conv.escalationReason ? ': ' + conv.escalationReason : ''}`}
+                        {getConversationLabel(conv)}
                       </h3>
                     </div>
-                    <div className="ml-2 flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                    <div className="ml-2 flex items-center gap-1 sm:gap-2 shrink-0">
                       {isPinned && (
                         <span className="badge badge-primary badge-xs sm:badge-sm gap-1">
                           <Pin className="w-3 h-3" />

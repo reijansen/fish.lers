@@ -46,18 +46,8 @@ export async function ensureStudentSupportConversation(req: Request, res: Respon
       return;
     }
 
-    const conversation = await ChatDataService.getOrCreateSupportConversation(studentUID);
-    
-    // Add the admin to participants so they see the conversation in their inbox
-    const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
-    const nextParticipants = Array.from(new Set([...participants, req.user.uid]));
-
-    await ChatRepository.updateConversation(conversation.conversationID, {
-      participants: nextParticipants,
-    });
-
-    const updated = await ChatRepository.getConversation(conversation.conversationID);
-    res.status(200).json({ conversation: updated || conversation });
+    const conversation = await ChatDataService.getOrCreateSupportConversation(studentUID, req.user.uid);
+    res.status(200).json({ conversation });
   } catch (error: any) {
     console.error("[API] ensureStudentSupportConversation:", error?.message || error);
     res.status(500).json({ error: "Failed to ensure support conversation" });
@@ -88,17 +78,8 @@ export async function assignMySupportConversation(req: Request, res: Response): 
       return;
     }
 
-    const conversation = await ChatDataService.getOrCreateSupportConversation(req.user.uid);
-    const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
-    const nextParticipants = Array.from(new Set([...participants, req.user.uid, adminUID]));
-
-    await ChatRepository.updateConversation(conversation.conversationID, {
-      participants: nextParticipants,
-      adminUID,
-    });
-
-    const updated = await ChatRepository.getConversation(conversation.conversationID);
-    res.status(200).json({ conversation: updated || conversation });
+    const conversation = await ChatDataService.getOrCreateSupportConversation(req.user.uid, adminUID);
+    res.status(200).json({ conversation });
   } catch (error: any) {
     console.error("[API] assignMySupportConversation:", error?.message || error);
     res.status(500).json({ error: "Failed to assign support conversation" });

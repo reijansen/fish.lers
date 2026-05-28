@@ -15,6 +15,7 @@ import { ChatToast } from './ChatToast';
 import { NewChatModal, type ChatPerson } from './NewChatModal';
 import { auth } from '../../firebase';
 import { ChatDetailsPanel } from "./ChatDetailsPanel";
+import { getSupportConversationLabel } from "./chatTitleUtils";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
@@ -111,9 +112,7 @@ export const ChatLayout: React.FC = () => {
       if (!conv) return "Conversation";
       if (conv.type === "staff") return "Staff Chat (Admins)";
       if (conv.type === "support") {
-        return `Support Chat${
-          conv.studentUID ? ` - ${chat.getPersonLabel(conv.studentUID)}` : ""
-        }`;
+        return getSupportConversationLabel(conv, chat.userUID, chat.peopleByUID);
       }
       if (conv.type === "escalation") {
         const participants = Array.isArray(conv.participants) ? conv.participants : [];
@@ -180,31 +179,23 @@ export const ChatLayout: React.FC = () => {
 
     // Student: always their own support thread
     if (chat.userRole === "student") {
-      // Ensure support conversation exists, then assign it to the selected admin/superAdmin target if applicable.
-      const supportRes = await fetch(`${API_BASE_URL}/api/chat/support`, {
+      // Create/get a dedicated support conversation for the selected admin.
+      const supportRes = await fetch(`${API_BASE_URL}/api/chat/support/assign`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ adminUID: person.uid }),
       });
-      console.log('[Chat] Create support conversation response:', supportRes.status, supportRes.ok);
+      console.log('[Chat] Create student-admin support response:', supportRes.status, supportRes.ok);
       if (!supportRes.ok) {
         const error = await supportRes.text();
-        console.error('[Chat] Failed to create support conversation:', error);
-        throw new Error(`Failed to create support conversation: ${error}`);
+        console.error('[Chat] Failed to create student-admin support conversation:', error);
+        throw new Error(`Failed to create student-admin support conversation: ${error}`);
       }
 
-      if (person.role === "admin") {
-        const assignRes = await fetch(`${API_BASE_URL}/api/chat/support/assign`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ adminUID: person.uid }),
-        });
-        console.log('[Chat] Assign admin response:', assignRes.status, assignRes.ok);
-        if (!assignRes.ok) {
-          const error = await assignRes.text();
-          console.error('[Chat] Failed to assign admin:', error);
-        }
-      }
-      await openConversationById(`support:${chat.userUID}`);
+      const data = await supportRes.json();
+      const conversationID = data?.conversation?.conversationID as string | undefined;
+      if (!conversationID) throw new Error("Invalid support response");
+      await openConversationById(conversationID);
       return;
     }
 
@@ -226,12 +217,10 @@ export const ChatLayout: React.FC = () => {
         throw new Error(`Failed to create student support conversation: ${error}`);
       }
 
-      // Claim/assign the support conversation to the current admin if needed (privacy: directed inbox).
-      // For superAdmins this will be enforced by join rules instead.
-      if (chat.userRole === "admin") {
-        // Student assignment endpoint requires student auth, so admins claim on join; open triggers join.
-      }
-      await openConversationById(`support:${person.uid}`);
+      const data = await createRes.json();
+      const conversationID = data?.conversation?.conversationID as string | undefined;
+      if (!conversationID) throw new Error("Invalid support response");
+      await openConversationById(conversationID);
       return;
     }
 
@@ -286,7 +275,7 @@ export const ChatLayout: React.FC = () => {
 
   if (chat.isLoading) {
     return (
-      <div className="h-full min-h-[16rem] flex items-center justify-center bg-base-100 rounded-box border border-base-300">
+      <div className="h-full min-h-64 flex items-center justify-center bg-base-100 rounded-box border border-base-300">
         <div className="text-center">
           <span className="loading loading-spinner loading-lg"></span>
           <p className="mt-4 text-base-content/60">Connecting...</p>
@@ -297,7 +286,7 @@ export const ChatLayout: React.FC = () => {
 
   if (!chat.isConnected) {
     return (
-      <div className="h-full min-h-[16rem] flex items-center justify-center bg-base-100 rounded-box border border-base-300">
+      <div className="h-full min-h-64 flex items-center justify-center bg-base-100 rounded-box border border-base-300">
         <div className="alert alert-error max-w-md">
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -397,7 +386,7 @@ export const ChatLayout: React.FC = () => {
         ) : (
           <>
             {/* Thread list sidebar */}
-            <div className="w-80 flex-shrink-0 overflow-hidden p-3">
+            <div className="w-80 shrink-0 overflow-hidden p-3">
               <div className="flex-1 min-h-0 bg-base-100 rounded-box border border-base-300 shadow-sm overflow-hidden h-full">
                 <ThreadList
                   conversations={chat.conversations}
@@ -504,6 +493,7 @@ export const ChatLayout: React.FC = () => {
         open={isNewChatOpen}
         onClose={() => setIsNewChatOpen(false)}
         onStart={handleStartNewChat}
+        currentUserRole={chat.userRole}
       />
     </div>
   );

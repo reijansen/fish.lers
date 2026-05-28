@@ -24,6 +24,26 @@ const CONVERSATIONS_COLLECTION = "chat_conversations";
 const MESSAGES_SUBCOLLECTION = "messages";
 const READ_STATE_COLLECTION = "chat_read_state";
 
+function normalizeConversationRecord(conversation: Conversation): Conversation {
+  if (conversation.type !== "support") {
+    return conversation;
+  }
+
+  const participants = Array.isArray(conversation.participants) ? conversation.participants : [];
+  const normalizedParticipants = Array.from(
+    new Set<string>([
+      ...(conversation.studentUID ? [conversation.studentUID] : []),
+      ...(conversation.adminUID ? [conversation.adminUID] : []),
+      ...participants.filter((uid) => uid === conversation.studentUID || uid === conversation.adminUID),
+    ])
+  );
+
+  return {
+    ...conversation,
+    participants: normalizedParticipants,
+  };
+}
+
 /**
  * Chat Repository.
  * All Firestore operations for conversations and messages.
@@ -41,10 +61,10 @@ export class ChatRepository {
       return null;
     }
 
-    return {
+    return normalizeConversationRecord({
       conversationID: docSnap.id,
       ...(docSnap.data() || {}),
-    } as Conversation;
+    } as Conversation);
   }
 
   /**
@@ -204,7 +224,7 @@ export class ChatRepository {
     const q = buildQuery(conversationsRef);
     const querySnap = await q.get();
 
-    return querySnap.docs.map((docSnap) => ({
+    return querySnap.docs.map((docSnap) => normalizeConversationRecord({
       conversationID: docSnap.id,
       ...(docSnap.data() || {}),
     } as Conversation));
@@ -228,7 +248,7 @@ export class ChatRepository {
       console.log(`[ChatRepo]   - ${doc.id}:`, doc.data());
     });
 
-    const conversations = querySnap.docs.map((docSnap) => ({
+    const conversations = querySnap.docs.map((docSnap) => normalizeConversationRecord({
       conversationID: docSnap.id,
       ...(docSnap.data() || {}),
     } as Conversation));
@@ -281,7 +301,7 @@ export class ChatRepository {
       });
     }
 
-    const conversations = Array.from(byId.values());
+    const conversations = Array.from(byId.values()).map((conv) => normalizeConversationRecord(conv));
 
     // Backfill: ensure admin is in participants for all returned conversations.
     await Promise.all(
@@ -320,7 +340,7 @@ export class ChatRepository {
 
     const querySnap = await escalationsQuery.get();
 
-    const conversations = querySnap.docs.map((docSnap) => ({
+    const conversations = querySnap.docs.map((docSnap) => normalizeConversationRecord({
       conversationID: docSnap.id,
       ...(docSnap.data() || {}),
     } as Conversation));
@@ -405,9 +425,18 @@ export class ChatRepository {
     updates: ConversationUpdateInput
   ): Promise<void> {
     const db = getFirestore();
+    const existing = await this.getConversation(conversationID);
+    const nextUpdates: ConversationUpdateInput = { ...updates };
+
+    if (existing?.type === "support" && Array.isArray(nextUpdates.participants)) {
+      const allowedParticipants = [existing.studentUID, existing.adminUID].filter(Boolean) as string[];
+      nextUpdates.participants = Array.from(
+        new Set(nextUpdates.participants.filter((uid): uid is string => allowedParticipants.includes(uid)))
+      );
+    }
 
     await db.collection(CONVERSATIONS_COLLECTION).doc(conversationID).update({
-      ...updates,
+      ...nextUpdates,
       updatedAt: new Date().toISOString(),
     });
   }

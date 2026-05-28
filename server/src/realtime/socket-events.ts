@@ -96,12 +96,18 @@ export function setupEventHandlers(io: SocketIOServer): void {
             const parsed = ChatDataService.parseConversationID(conversationID);
             const isSupport = parsed?.type === "support";
 
-            // Claim support thread for this admin/superAdmin if not already claimed.
-            if (isSupport && user.admin && !user.superAdmin && !convo.adminUID) {
-              await ChatRepository.updateConversation(conversationID, {
-                participants: [...participants, user.uid],
-                adminUID: user.uid,
-              });
+            // Support threads are student↔admin only. SuperAdmins must never be attached.
+            if (isSupport) {
+              if (user.admin && !user.superAdmin) {
+                const nextParticipants = Array.from(new Set([...(participants || []), user.uid]));
+                const nextUpdates: Record<string, unknown> = {
+                  participants: nextParticipants,
+                };
+                if (!convo.adminUID) {
+                  nextUpdates.adminUID = user.uid;
+                }
+                await ChatRepository.updateConversation(conversationID, nextUpdates as any);
+              }
             } else {
               await ChatRepository.updateConversation(conversationID, {
                 participants: [...participants, user.uid],
