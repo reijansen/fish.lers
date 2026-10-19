@@ -29,7 +29,15 @@ export async function maybeEnableRedisAdapter(io: SocketIOServer): Promise<Redis
   if (!url) return { enabled: false, mode: "disabled", details: "REDIS_URL/REDIS_HOST not set" };
 
   try {
-    const pubClient = createClient({ url });
+    // Redis is optional. Do not let a stale/unreachable Redis hostname keep
+    // reconnecting forever and block the HTTP server from binding its port.
+    const pubClient = createClient({
+      url,
+      socket: {
+        connectTimeout: 5000,
+        reconnectStrategy: false,
+      },
+    });
     const subClient = pubClient.duplicate();
 
     pubClient.on("error", (err: unknown) =>
