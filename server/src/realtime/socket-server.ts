@@ -9,6 +9,7 @@ import { Server as HTTPServer } from "http";
 import { Server as SocketIOServer, Socket } from "socket.io";
 import { AppConfig } from "../config/env.js";
 import { REALTIME_CONFIG } from "./config.js";
+import { isAllowedOrigin } from "../config/cors.js";
 
 /**
  * Create and configure Socket.io server.
@@ -19,32 +20,12 @@ export function createSocketIOServer(
   config: AppConfig
 ): SocketIOServer {
   // CORS origins (match Express CORS config)
-  const allowedOrigins = Array.from(
-    new Set([
-      config.clientUrl,
-      ...config.clientUrls,
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:5175",
-      "http://127.0.0.1:5173",
-      "http://127.0.0.1:5174",
-      "http://127.0.0.1:5175",
-    ])
-  );
-
-  const isLocalDevOrigin = (origin: string): boolean =>
-    /^https?:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(origin);
-  const isLanDevOrigin = (origin: string): boolean =>
-    /^https?:\/\/((192\.168|10\.\d+|172\.(1[6-9]|2\d|3[0-1]))\.\d+\.\d+):\d{2,5}$/.test(origin);
-
   const io = new SocketIOServer(httpServer, {
     cors: {
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
         if (
-          allowedOrigins.includes(origin) ||
-          isLocalDevOrigin(origin) ||
-          isLanDevOrigin(origin)
+          isAllowedOrigin(origin, config)
         ) {
           callback(null, true);
         } else {

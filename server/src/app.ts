@@ -15,6 +15,7 @@ import {
   setupEventHandlers,
 } from "./realtime/index.js";
 import { REALTIME_CONFIG } from "./realtime/config.js";
+import { getAllowedOrigins, isAllowedOrigin } from "./config/cors.js";
 
 /**
  * Create and configure the Express app.
@@ -24,30 +25,14 @@ export function createApp(config: AppConfig): express.Application {
   const app = express();
 
   // ============ CORS CONFIGURATION ============
-  const allowedOrigins = Array.from(
-    new Set([
-      config.clientUrl,
-      ...config.clientUrls,
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "http://localhost:5175",
-      "http://127.0.0.1:5173",
-      "http://127.0.0.1:5174",
-      "http://127.0.0.1:5175",
-    ])
-  );
-
-  const isLocalDevOrigin = (origin: string): boolean =>
-    /^https?:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(origin);
-  const isLanDevOrigin = (origin: string): boolean =>
-    /^https?:\/\/((192\.168|10\.\d+|172\.(1[6-9]|2\d|3[0-1]))\.\d+\.\d+):\d{2,5}$/.test(origin);
+  const allowedOrigins = getAllowedOrigins(config);
 
   const corsOptions: cors.CorsOptions = {
     origin: (origin, callback) => {
       // Allow requests with no origin (like curl or server-to-server)
       if (!origin) return callback(null, true);
 
-      if (allowedOrigins.includes(origin) || isLocalDevOrigin(origin) || isLanDevOrigin(origin)) {
+      if (isAllowedOrigin(origin, config)) {
         callback(null, true);
       } else {
         callback(new Error(`CORS not allowed for origin: ${origin}`));
